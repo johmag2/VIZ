@@ -146,7 +146,7 @@ class MainWindow(QMainWindow):
             line = QLineF(x1,y1,x2,y2)
             self.scene.addLine(line)
             
-            #break
+            break
             
     
     def airport_throughput(self,g):
@@ -158,6 +158,7 @@ class MainWindow(QMainWindow):
             incoming[int(edge.node2.id)] += 1   #Incoming
         
         return outgoing,incoming
+    
     
 def main():
     app = QApplication(sys.argv)

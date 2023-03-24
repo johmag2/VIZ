@@ -1,0 +1,12 @@
+TODO:
+
+Write STAR report
+
+Edge bundling
+
+Options menu: buttons to select which parts to visualize
+
+Lookup: List of the airports 
+
+Interactivity: Able to click and highlight each airport.
+
