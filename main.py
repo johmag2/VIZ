@@ -81,7 +81,7 @@ class MainWindow(QMainWindow):
 
     def createGraphicView(self):
         self.scene = VisGraphicsScene()
-        self.brush = [QBrush(Qt.yellow), QBrush(Qt.green), QBrush(Qt.blue)]
+        self.brush = [QBrush(Qt.yellow), QBrush(Qt.green), QBrush(Qt.blue), QBrush(Qt.red), QBrush(Qt.black)]
         self.view = VisGraphicsView(self.scene, self)
         self.setCentralWidget(self.view)
         self.view.setGeometry(0, 0, 800, 600)
@@ -108,28 +108,36 @@ class MainWindow(QMainWindow):
         parser = GraphMLParser()
         g = parser.parse("airlines.graphml/airlines.graphml")
         
-        sizes = count(g)
-        print(sizes.shape)
+        #Determine size of airport based on throughput
+        outgoing,incoming = count(g)
+        total = outgoing + incoming 
+        
+        colours = np.zeros((len(total)),dtype=np.int16)
+        colours[total > 25] = 1
+        colours[total > 50] = 2
+        colours[total > 100] =3
+        
+        
         for i in g.nodes():
             x = float(i['x'])
             y = float(i['y'])
-            #d = 25 #random.random()
-            d = 2 * math.log (sizes[int(i.id)],10)
-            #d = sizes[int(i.id)] / 3
-            #print(x, y,d,self.scene.pen)
-            ellipse = self.scene.addEllipse(x, y, d, d, self.scene.pen)
+            c = colours[int(i.id)]
+            d = 2 * math.log (total[int(i.id)],2) 
+            #d = total[int(i.id)]/max(total)
+            
+            ellipse = self.scene.addEllipse(x, y, d, d, self.scene.pen,self.brush[c])
             
 
 def count(g):
-    airports = np.zeros((len(g.nodes()),1))
-    outgoing = np.zeros((len(g.nodes()),1))
-    incoming = np.zeros((len(g.nodes()),1))
+    airports = np.zeros(len(g.nodes()))
+    outgoing = np.zeros(len(g.nodes()))
+    incoming = np.zeros(len(g.nodes()))
     for edge in g.edges():
         #print(int(edge.node1.id))
         outgoing[int(edge.node1.id)] += 1   #Outgoing  
         incoming[int(edge.node2.id)] += 1   # Incoming
-    airports = outgoing + incoming
-    return airports
+    
+    return outgoing,incoming
     
 def main():
     app = QApplication(sys.argv)
