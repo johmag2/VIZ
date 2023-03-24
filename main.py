@@ -13,6 +13,9 @@ import sys, random, math
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QSizePolicy
 from PySide6.QtGui import QBrush, QPen, QTransform, QPainter
+from pygraphml import GraphMLParser
+from pygraphml import Graph
+import numpy as np
 
 class VisGraphicsScene(QGraphicsScene):
     def __init__(self):
@@ -47,7 +50,7 @@ class VisGraphicsView(QGraphicsView):
         self.setResizeAnchor(QGraphicsView.AnchorViewCenter)
 
     def wheelEvent(self, event):
-        zoom = 1 + event.angleDelta().y()*0.001;
+        zoom = 1 + event.angleDelta().y()*0.001
         self.scale(zoom, zoom)
         
     def mousePressEvent(self, event):
@@ -71,7 +74,8 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self.setWindowTitle('VIZ Qt for Python Example')
         self.createGraphicView()
-        self.generateAndMapData()
+        #self.generateAndMapData()
+        self.drawNodes()
         #self.setMinimumSize(800, 600)
         self.show()
 
@@ -84,7 +88,7 @@ class MainWindow(QMainWindow):
 
     def generateAndMapData(self):
         #Generate random data
-        count = 100;
+        count = 100
         x = []
         y = []
         r = []
@@ -100,10 +104,37 @@ class MainWindow(QMainWindow):
             d = 2*r[i]
             ellipse = self.scene.addEllipse(x[i], y[i], d, d, self.scene.pen, self.brush[c[i]])
 
+    def drawNodes(self):
+        parser = GraphMLParser()
+        g = parser.parse("airlines.graphml/airlines.graphml")
+        
+        sizes = count(g)
+        print(sizes.shape)
+        for i in g.nodes():
+            x = float(i['x'])
+            y = float(i['y'])
+            #d = 25 #random.random()
+            d = 2 * math.log (sizes[int(i.id)],10)
+            #d = sizes[int(i.id)] / 3
+            #print(x, y,d,self.scene.pen)
+            ellipse = self.scene.addEllipse(x, y, d, d, self.scene.pen)
+            
+
+def count(g):
+    airports = np.zeros((len(g.nodes()),1))
+    outgoing = np.zeros((len(g.nodes()),1))
+    incoming = np.zeros((len(g.nodes()),1))
+    for edge in g.edges():
+        #print(int(edge.node1.id))
+        outgoing[int(edge.node1.id)] += 1   #Outgoing  
+        incoming[int(edge.node2.id)] += 1   # Incoming
+    airports = outgoing + incoming
+    return airports
+    
 def main():
     app = QApplication(sys.argv)
     ex = MainWindow()
     sys.exit(app.exec_())
-
+    
 if __name__ == "__main__":
     main()

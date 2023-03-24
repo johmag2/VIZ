@@ -27,12 +27,27 @@ parser.write(g, fname)
 
 
 parser = GraphMLParser()
-#g = parser.parse("airlines.graphml/airlines.graphml")
+g = parser.parse("airlines.graphml/airlines.graphml")
+print(g.edges()[0].node1,g.edges()[0].node2)
+## Access nodes: g.nodes() -> list of nodes
 
-#print(g.nodes()[0]["tooltip"][0:3])
-#print(g)
+"""
+##Edge object
+class Edge(Item):
+    def __init__(self, node1, node2, directed = False):
 
-g = parser.parse(fname)
-g.show()
+        super(Edge, self).__init__()
+
+        self.node1 = node1
+        self.node2 = node2
+
+        self.node1._edges.append(self)
+        self.node2._edges.append(self)
+
+        self._directed = directed
+"""
+#g = parser.parse(fname)
+#g.show()
 
 #mygraph = nx.read_gml("path.to.file")
+
