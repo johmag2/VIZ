@@ -13,9 +13,9 @@ import sys, random, math
 from PySide6.QtCore import Qt, QSize, QLineF
 from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QSizePolicy
 from PySide6.QtGui import QBrush, QPen, QTransform, QPainter
-from pygraphml import GraphMLParser
-from pygraphml import Graph
 import numpy as np
+
+import graph
 
 class VisGraphicsScene(QGraphicsScene):
     def __init__(self):
@@ -31,6 +31,7 @@ class VisGraphicsScene(QGraphicsScene):
         if(self.selection):
             self.selection.setPen(self.pen)
         item = self.itemAt(event.scenePos(), QTransform())
+        
         if(item):
             item.setPen(self.selected)
             self.selection = item
@@ -54,14 +55,14 @@ class VisGraphicsView(QGraphicsView):
         self.scale(zoom, zoom)
         
     def mousePressEvent(self, event):
-        self.startX = event.pos().x()
-        self.startY = event.pos().y()
+        self.startX = event.position().x()
+        self.startY = event.position().y()
         self.myScene.wasDragg = False
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
-        endX = event.pos().x()
-        endY = event.pos().y()
+        endX = event.position().x()
+        endY = event.position().y()
         deltaX = endX - self.startX
         deltaY = endY - self.startY
         distance = math.sqrt(deltaX*deltaX + deltaY*deltaY)
@@ -72,12 +73,21 @@ class VisGraphicsView(QGraphicsView):
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.graph = GraphMLParser().parse("airlines.graphml/airlines.graphml")
-        self.setWindowTitle('VIZ Qt for Python Example')
+        
+        self.graph = graph.graph()
+        self.graph.parse("airlines.graphml/airlines.graphml")
+        #self.graph.airport_throughput()
+        
+        self.setWindowTitle('American air traffic')
         self.createGraphicView()
-        #self.generateAndMapData()
+        
+        self.circle_to_node = {}
+        self.node_to_circle = {}
         self.drawNodes()
+        self.line_to_edge = {}
+        self.edge_to_line = {}
         self.drawEdges()
+        
         #self.setMinimumSize(800, 600)
         self.show()
         
@@ -90,25 +100,8 @@ class MainWindow(QMainWindow):
         self.view = VisGraphicsView(self.scene, self)
         self.setCentralWidget(self.view)
         self.view.setGeometry(0, 0, 800, 600)
-
-    def generateAndMapData(self):
-        #Generate random data
-        count = 100
-        x = []
-        y = []
-        r = []
-        c = []
-        for i in range(0, count):
-            x.append(random.random()*600)
-            y.append(random.random()*400)
-            r.append(random.random()*50)
-            c.append(random.randint(0, 2))
-
-        #Map data to graphical elements
-        for i in range(0, count):
-            d = 2*r[i]
-            ellipse = self.scene.addEllipse(x[i], y[i], d, d, self.scene.pen, self.brush[c[i]])
-
+        
+        
     def drawNodes(self):
         
         #Determine size of airport based on throughput
@@ -127,11 +120,16 @@ class MainWindow(QMainWindow):
             x = float(i['x'])
             y = float(i['y'])
             c = colours[int(i.id)]
+            
+            #total = i['Incoming'] + i['Outgoing']
             d =  2 * math.log (total[int(i.id)],2) 
-            #d = total[int(i.id)]/max(total)
+            
             ellipse = self.scene.addEllipse(x -d/2, y-d/2, d, d, self.scene.pen,self.brush[c])
             
-            
+            self.circle_to_node[i] = ellipse
+            self.node_to_circle[ellipse] = i
+    
+    
     def drawEdges(self):
         
         for edge in self.graph.edges():
@@ -143,16 +141,17 @@ class MainWindow(QMainWindow):
             x2 = float(end['x'])
             y2 = float(end['y'])
             
-            line = QLineF(x1,y1,x2,y2)
-            self.scene.addLine(line)
+            line = self.scene.addLine(x1,y1,x2,y2)
+            self.line_to_edge[line] = edge
+            self.edge_to_line[edge] = line
             
-            break
-            
+        
     
     def airport_throughput(self,g):
         ## Count the throughput of an airport
         outgoing = np.zeros(len(g.nodes()))
         incoming = np.zeros(len(g.nodes()))
+        
         for edge in g.edges():
             outgoing[int(edge.node1.id)] += 1   #Outgoing  
             incoming[int(edge.node2.id)] += 1   #Incoming
@@ -164,7 +163,7 @@ def main():
     app = QApplication(sys.argv)
 
     ex = MainWindow()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
     
 if __name__ == "__main__":
     main()
