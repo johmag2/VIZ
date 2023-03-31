@@ -8,10 +8,11 @@
 # FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS 
 # OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING 
 # OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
+from pygraphml import GraphMLParser 
 import sys, random, math
-from PySide6.QtCore import Qt, QSize, QLineF
-from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QSizePolicy
+from PySide6.QtCore import Qt, QSize, QRectF, QLineF
+import PySide6.QtWidgets as QtWidgets
+from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QSizePolicy, QWidget
 from PySide6.QtGui import QBrush, QPen, QTransform, QPainter
 import numpy as np
 
@@ -33,6 +34,7 @@ class VisGraphicsScene(QGraphicsScene):
         item = self.itemAt(event.scenePos(), QTransform())
         
         if(item):
+            print(item.data(0))
             item.setPen(self.selected)
             self.selection = item
 
@@ -49,6 +51,7 @@ class VisGraphicsView(QGraphicsView):
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorViewCenter)
+        
 
     def wheelEvent(self, event):
         zoom = 1 + event.angleDelta().y()*0.001
@@ -73,9 +76,12 @@ class VisGraphicsView(QGraphicsView):
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-        
+        """
         self.graph = graph.graph()
         self.graph.parse("airlines.graphml/airlines.graphml")
+        """
+        self.graph = GraphMLParser().parse("airlines.graphml/airlines.graphml")
+        
         #self.graph.airport_throughput()
         
         self.setWindowTitle('American air traffic')
@@ -86,11 +92,26 @@ class MainWindow(QMainWindow):
         self.drawNodes()
         self.line_to_edge = {}
         self.edge_to_line = {}
-        self.drawEdges()
+        #self.drawEdges()
         
-        #self.setMinimumSize(800, 600)
+        #self.addGUI()
+
+        self.setMinimumSize(800, 600)
+
         self.show()
         
+    def addGUI(self):
+        ## Attempt to add gui
+        proxy = QtWidgets.QGraphicsProxyWidget()
+        
+        button = QtWidgets.QPushButton("Press me :)")
+        button.setGeometry(-600,-500,100,50)
+        #button.setParent(proxy)
+        proxy.setWidget(text)
+        proxy.setWidget(button)
+        proxy.setToolTip("Proxy toolTip")
+    
+        self.scene.addItem(proxy)
 
     def createGraphicView(self):
         self.scene = VisGraphicsScene()
@@ -98,25 +119,32 @@ class MainWindow(QMainWindow):
         self.brush = [QBrush(Qt.yellow),QBrush(Qt.green), QBrush(Qt.blue),QBrush(Qt.red)]
         
         self.view = VisGraphicsView(self.scene, self)
+        
         self.setCentralWidget(self.view)
         self.view.setGeometry(0, 0, 800, 600)
         
         
     def drawNodes(self):
+        """
+        for node in self.graph.node_to_circle.values():
+            self.scene.addLine(node)
         
+        """
         #Determine size of airport based on throughput
         g = self.graph
         outgoing,incoming = self.airport_throughput(g)
         total = outgoing + incoming 
+        sort_indexes = np.argsort(total)
         
         colours = np.zeros((len(total)),dtype=np.int16)
         colours[total > 25] = 1
         colours[total > 50] = 2
-        colours[total > 100] =3
+        colours[total > 100] = 3
         #colours[total > 100] =4
+        nodes = g.nodes()
         
-        
-        for i in g.nodes():
+        for index in reversed(sort_indexes):
+            i = nodes[index]
             x = float(i['x'])
             y = float(i['y'])
             c = colours[int(i.id)]
@@ -125,12 +153,17 @@ class MainWindow(QMainWindow):
             d =  2 * math.log (total[int(i.id)],2) 
             
             ellipse = self.scene.addEllipse(x -d/2, y-d/2, d, d, self.scene.pen,self.brush[c])
+            ellipse.setData(0,i['tooltip'])
             
             self.circle_to_node[i] = ellipse
             self.node_to_circle[ellipse] = i
-    
+        
     
     def drawEdges(self):
+        """
+        for edge in self.graph.edge_to_line.values():
+            self.scene.addLine(edge)
+         """   
         
         for edge in self.graph.edges():
             start = edge.node1
@@ -142,6 +175,8 @@ class MainWindow(QMainWindow):
             y2 = float(end['y'])
             
             line = self.scene.addLine(x1,y1,x2,y2)
+            line.setData(0,"{}->{}".format(start['label'],end['label']))
+            
             self.line_to_edge[line] = edge
             self.edge_to_line[edge] = line
             
