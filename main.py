@@ -94,24 +94,23 @@ class MainWindow(QMainWindow):
         self.edge_to_line = {}
         #self.drawEdges()
         
-        #self.addGUI()
-
+        self.addGUI()
+        
+    
         self.setMinimumSize(800, 600)
 
         self.show()
         
     def addGUI(self):
         ## Attempt to add gui
-        proxy = QtWidgets.QGraphicsProxyWidget()
+        area = Qt.DockWidgetArea(0x2)
+        self.dock = QtWidgets.QDockWidget(self)
+        self.dock.setWindowTitle("Info")
         
-        button = QtWidgets.QPushButton("Press me :)")
-        button.setGeometry(-600,-500,100,50)
-        #button.setParent(proxy)
-        proxy.setWidget(text)
-        proxy.setWidget(button)
-        proxy.setToolTip("Proxy toolTip")
-    
-        self.scene.addItem(proxy)
+        text = QtWidgets.QLabel("Test")
+        text.setParent(self.dock)
+        
+        self.addDockWidget(area,self.dock)
 
     def createGraphicView(self):
         self.scene = VisGraphicsScene()
