@@ -19,8 +19,9 @@ import numpy as np
 import graph
 
 class VisGraphicsScene(QGraphicsScene):
-    def __init__(self):
+    def __init__(self,window):
         super(VisGraphicsScene, self).__init__()
+        self.window = window
         self.selection = None
         self.wasDragg = False
         self.pen = QPen(Qt.black)
@@ -35,6 +36,7 @@ class VisGraphicsScene(QGraphicsScene):
         
         if(item):
             print(item.data(0))
+            #print(self.window.dock.children())
             item.setPen(self.selected)
             self.selection = item
 
@@ -92,13 +94,10 @@ class MainWindow(QMainWindow):
         self.drawNodes()
         self.line_to_edge = {}
         self.edge_to_line = {}
-        #self.drawEdges()
-        
+        self.drawEdges()
         self.addGUI()
-        
     
         self.setMinimumSize(800, 600)
-
         self.show()
         
     def addGUI(self):
@@ -109,11 +108,10 @@ class MainWindow(QMainWindow):
         
         text = QtWidgets.QLabel("Test")
         text.setParent(self.dock)
-        
         self.addDockWidget(area,self.dock)
 
     def createGraphicView(self):
-        self.scene = VisGraphicsScene()
+        self.scene = VisGraphicsScene(self)
         
         self.brush = [QBrush(Qt.yellow),QBrush(Qt.green), QBrush(Qt.blue),QBrush(Qt.red)]
         
