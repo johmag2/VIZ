@@ -37,6 +37,8 @@ class VisGraphicsScene(QGraphicsScene):
         if(item):
             print(item.data(0))
             #print(self.window.dock.children())
+            #self.window.dock
+            
             item.setPen(self.selected)
             self.selection = item
 
@@ -78,12 +80,12 @@ class VisGraphicsView(QGraphicsView):
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-        """
+        
         self.graph = graph.graph()
         self.graph.parse("airlines.graphml/airlines.graphml")
-        """
-        self.graph = GraphMLParser().parse("airlines.graphml/airlines.graphml")
         
+        #self.graph = GraphMLParser().parse("airlines.graphml/airlines.graphml")
+        self.graph.get_node_labels()
         #self.graph.airport_throughput()
         
         self.setWindowTitle('American air traffic')
@@ -94,7 +96,7 @@ class MainWindow(QMainWindow):
         self.drawNodes()
         self.line_to_edge = {}
         self.edge_to_line = {}
-        self.drawEdges()
+       # self.drawEdges()
         self.addGUI()
     
         self.setMinimumSize(800, 600)
@@ -145,11 +147,10 @@ class MainWindow(QMainWindow):
             x = float(i['x'])
             y = float(i['y'])
             c = colours[int(i.id)]
+        
+            d = math.sqrt(total[int(i.id)]) 
             
-            #total = i['Incoming'] + i['Outgoing']
-            d =  2 * math.log (total[int(i.id)],2) 
-            
-            ellipse = self.scene.addEllipse(x -d/2, y-d/2, d, d, self.scene.pen,self.brush[c])
+            ellipse = self.scene.addEllipse(x-d/2, y-d/2, d, d, self.scene.pen,self.brush[c])
             ellipse.setData(0,i['tooltip'])
             
             self.circle_to_node[i] = ellipse
