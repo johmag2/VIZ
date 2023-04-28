@@ -15,13 +15,8 @@ class graph(pyGraph):
             self.get_node_labels()
             self.airport_throughput()
         
-        self.circle_to_node = {}
-        self.node_to_circle = {}
-        self.line_to_edge = {}
-        self.edge_to_line = {}
-        
-        self.name_to_node = {}
-            
+        self.name_to_node = {}        
+        self.node_id_to_out_id = {}
     
     def parse(self,url):
         g = GraphMLParser().parse(url)
@@ -33,6 +28,7 @@ class graph(pyGraph):
         #self.create_edges()
         
     def get_node_labels(self): 
+        ##Extract the airport labels from the tooltip
         
         for node in self.nodes():
             
@@ -40,7 +36,6 @@ class graph(pyGraph):
             node['label'] = label
             
             self.name_to_node[label] = node
-        
         
         return label 
     
@@ -53,6 +48,12 @@ class graph(pyGraph):
         for edge in self.edges():
             self.outgoing[int(edge.node1.id)] += 1   #Outgoing  
             self.incoming[int(edge.node2.id)] += 1   #Incoming
+            
+            ##Set up node to out dict
+            try:
+                self.node_id_to_out_id[str(edge.node1.id)].append(edge.id)
+            except KeyError:
+                self.node_id_to_out_id[str(edge.node1.id)]= [edge.id]
         
         ##Check if size info in node
         try:

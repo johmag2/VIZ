@@ -22,7 +22,7 @@ class VisGraphicsScene(QGraphicsScene):
     def __init__(self,window):
         super(VisGraphicsScene, self).__init__()
         self.window = window
-        self.selection = None
+        self.selection = []
         self.wasDragg = False
         self.pen = QPen(Qt.black)
         self.selected = QPen(Qt.red)
@@ -31,7 +31,8 @@ class VisGraphicsScene(QGraphicsScene):
         if(self.wasDragg):
             return
         if(self.selection):
-            self.selection.setPen(self.pen)
+            [item.setPen(self.pen) for item in self.selection]
+            
         item = self.itemAt(event.scenePos(), QTransform())
         
         if(item):
@@ -40,7 +41,11 @@ class VisGraphicsScene(QGraphicsScene):
             self.updateInfo(item)
             
             item.setPen(self.selected)
-            self.selection = item
+            self.selection.append(item)
+            
+            if type(item) == QtWidgets.QGraphicsEllipseItem:
+                node = self.window.circle_to_node[item]
+                self.selectEdges(node)
 
     def updateInfo(self,item):
         ##Update info label
@@ -54,10 +59,11 @@ class VisGraphicsScene(QGraphicsScene):
         widget = self.window.dock.widget()
         info = widget.findChild(QtWidgets.QLabel)   #,"Info")
         info.setText(text) 
-        
-        
+    
     def listChangeEvent(self,name):
         ##Function to catch the text change signal
+        
+        #Empty exception
         if name == "-":
             return
         
@@ -65,8 +71,8 @@ class VisGraphicsScene(QGraphicsScene):
         node = self.window.graph.name_to_node[name]
         
         ##Reset previous selected
-        if(self.selection):
-            self.selection.setPen(self.pen)
+        if self.selection:
+            [item.setPen(self.pen) for item in self.selection]
             
         ##Get circle
         circle_obj = self.window.node_to_circle[node]
@@ -74,7 +80,25 @@ class VisGraphicsScene(QGraphicsScene):
         #Update viz
         self.updateInfo(circle_obj)
         circle_obj.setPen(self.selected)
-        self.selection = circle_obj
+        self.selection.append(circle_obj)
+        self.selectEdges(node)
+
+    def selectEdges(self,node):
+        ##Select edges stemming from node
+        graph = self.window.graph
+        out = graph.node_id_to_out_id[node.id]
+        edges = graph.edges()
+        
+        for edge_id in out:
+            edge = edges[int(edge_id)]
+            try:
+                line = self.window.edge_to_line[edge]
+                
+                line.setPen(self.selected)
+                self.selection.append(line)
+                
+            except KeyError:
+                pass
         
 class VisGraphicsView(QGraphicsView):
     def __init__(self, scene, parent):
@@ -126,12 +150,17 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('American air traffic')
         self.createGraphicView()
         
+        ## Dicts to go from node to graphical object and vice versa
         self.circle_to_node = {}
         self.node_to_circle = {}
         self.drawNodes()
+        
+        ## Dicts to go from line to graphical object and vice versa
         self.line_to_edge = {}
         self.edge_to_line = {}
         self.drawEdges()
+        
+        ##
         self.addGUI()
     
         self.setMinimumSize(800, 600)
@@ -245,7 +274,7 @@ class MainWindow(QMainWindow):
             
             self.line_to_edge[line] = edge
             self.edge_to_line[edge] = line
-            break
+            #break
         
     
 def main():
