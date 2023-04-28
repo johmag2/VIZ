@@ -36,8 +36,17 @@ class VisGraphicsScene(QGraphicsScene):
         
         if(item):
             print(item.data(0))
-            #print(self.window.dock.children())
-            #self.window.dock
+            
+            if type(item) == QtWidgets.QGraphicsEllipseItem:
+                node = self.window.circle_to_node[item]
+                text = "Airport: \n {} \n Incoming: {} \n Outgoing: {}".format(node["label"],node["in"],node["out"] )
+                
+            elif type(item) == QtWidgets.QGraphicsLineItem:
+                text = "Airplane: \n" + item.data(0)
+
+            widget = self.window.dock.widget()
+            info = widget.findChild(QtWidgets.QLabel)   #,"Info")
+            info.setText(text)
             
             item.setPen(self.selected)
             self.selection = item
@@ -96,20 +105,40 @@ class MainWindow(QMainWindow):
         self.drawNodes()
         self.line_to_edge = {}
         self.edge_to_line = {}
-       # self.drawEdges()
+        self.drawEdges()
         self.addGUI()
     
         self.setMinimumSize(800, 600)
         self.show()
         
+        print(self.circle_to_node)
+        print(self.node_to_circle)
+        
+        
     def addGUI(self):
         ## Attempt to add gui
         area = Qt.DockWidgetArea(0x2)
         self.dock = QtWidgets.QDockWidget(self)
-        self.dock.setWindowTitle("Info")
+        self.dock.setWindowTitle("")
         
-        text = QtWidgets.QLabel("Test")
-        text.setParent(self.dock)
+        #text.setParent(self.dock)
+        
+        layout = QtWidgets.QVBoxLayout()
+        widgets = [
+            QtWidgets.QCheckBox(),
+            QtWidgets.QFontComboBox(),
+            QtWidgets.QLabel("Info"),
+            QtWidgets.QSlider(Qt.Horizontal)
+        ]
+
+        for w in widgets:
+            layout.addWidget(w)
+            
+        #self.dock.setWidget(text)
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.dock.setWidget(widget)
+        
         self.addDockWidget(area,self.dock)
 
     def createGraphicView(self):
@@ -131,7 +160,7 @@ class MainWindow(QMainWindow):
         """
         #Determine size of airport based on throughput
         g = self.graph
-        outgoing,incoming = self.airport_throughput(g)
+        outgoing,incoming = g.airport_throughput()
         total = outgoing + incoming 
         sort_indexes = np.argsort(total)
         
@@ -151,11 +180,10 @@ class MainWindow(QMainWindow):
             d = math.sqrt(total[int(i.id)]) 
             
             ellipse = self.scene.addEllipse(x-d/2, y-d/2, d, d, self.scene.pen,self.brush[c])
-            ellipse.setData(0,i['tooltip'])
+            ellipse.setData(0,i['label'])
             
-            self.circle_to_node[i] = ellipse
-            self.node_to_circle[ellipse] = i
-        
+            self.circle_to_node[ellipse] = i
+            self.node_to_circle[i] = ellipse
     
     def drawEdges(self):
         """
@@ -177,20 +205,8 @@ class MainWindow(QMainWindow):
             
             self.line_to_edge[line] = edge
             self.edge_to_line[edge] = line
-            
+            break
         
-    
-    def airport_throughput(self,g):
-        ## Count the throughput of an airport
-        outgoing = np.zeros(len(g.nodes()))
-        incoming = np.zeros(len(g.nodes()))
-        
-        for edge in g.edges():
-            outgoing[int(edge.node1.id)] += 1   #Outgoing  
-            incoming[int(edge.node2.id)] += 1   #Incoming
-        
-        return outgoing,incoming
-    
     
 def main():
     app = QApplication(sys.argv)

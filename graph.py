@@ -13,6 +13,7 @@ class graph(pyGraph):
             self._nodes = g._nodes
             self._edges = g._edges
             self.get_node_labels()
+            self.airport_throughput()
         
         self.circle_to_node = {}
         self.node_to_circle = {}
@@ -25,7 +26,7 @@ class graph(pyGraph):
         self._nodes = g._nodes
         self._edges = g._edges
         self.get_node_labels()
-        #self.airport_throughput()
+        self.airport_throughput()
         #self.create_nodes()
         #self.create_edges()
         
@@ -40,25 +41,24 @@ class graph(pyGraph):
     
     
     def airport_throughput(self):
-        ## Not finished
         ## Count the throughput of an airport
-        
-        N = len(self.nodes())
-        outgoing = np.zeros(N)
-        incoming = np.zeros(N)
+        self.outgoing = np.zeros(len(self.nodes()),dtype=np.int32)
+        self.incoming = np.zeros(len(self.nodes()),dtype=np.int32)
         
         for edge in self.edges():
-            try:
-                edge.node1["Outgoing"] = int(edge.node1["Outgoing"]) + 1
-                edge.node2["Incoming"] = int(edge.node2["Incoming"]) + 1
-            except KeyError:
-                edge.node1["Outgoing"] = 1
-                edge.node2["Incoming"] = 1
-            
-            #outgoing[int(edge.node1.id)] += 1   #Outgoing  
-            #incoming[int(edge.node2.id)] += 1   #Incoming
+            self.outgoing[int(edge.node1.id)] += 1   #Outgoing  
+            self.incoming[int(edge.node2.id)] += 1   #Incoming
         
-        return outgoing,incoming
+        ##Check if size info in node
+        try:
+            self.nodes()[0]["in"] = self.nodes()[0]["in"]
+        except KeyError:
+            for node in self.nodes():
+                node["in"] = self.incoming[int(node.id)]
+                node["out"] = self.outgoing[int(node.id)]
+
+        return self.outgoing,self.incoming
+        
         
     def create_nodes(self):
         #Create nodes
@@ -68,7 +68,7 @@ class graph(pyGraph):
             y = float(i['y'])
             #c = colours[int(i.id)]
             
-            total = int(i['Incoming']) + int(i['Outgoing'])
+            total = int(i['in']) + int(i['out'])
             d =  2 * math.log (total,2) 
             
             ellipse = QRectF(x -d/2, y-d/2, d, d)
