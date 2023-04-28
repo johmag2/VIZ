@@ -19,6 +19,8 @@ class graph(pyGraph):
         self.node_to_circle = {}
         self.line_to_edge = {}
         self.edge_to_line = {}
+        
+        self.name_to_node = {}
             
     
     def parse(self,url):
@@ -37,6 +39,9 @@ class graph(pyGraph):
             label = node['tooltip'][0:3]
             node['label'] = label
             
+            self.name_to_node[label] = node
+        
+        
         return label 
     
     

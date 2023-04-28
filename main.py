@@ -37,20 +37,45 @@ class VisGraphicsScene(QGraphicsScene):
         if(item):
             print(item.data(0))
             
-            if type(item) == QtWidgets.QGraphicsEllipseItem:
-                node = self.window.circle_to_node[item]
-                text = "Airport: \n {} \n Incoming: {} \n Outgoing: {}".format(node["label"],node["in"],node["out"] )
-                
-            elif type(item) == QtWidgets.QGraphicsLineItem:
-                text = "Airplane: \n" + item.data(0)
-
-            widget = self.window.dock.widget()
-            info = widget.findChild(QtWidgets.QLabel)   #,"Info")
-            info.setText(text)
+            self.updateInfo(item)
             
             item.setPen(self.selected)
             self.selection = item
 
+    def updateInfo(self,item):
+        ##Update info label
+        if type(item) == QtWidgets.QGraphicsEllipseItem:
+            node = self.window.circle_to_node[item]
+            text = "Airport: \n {} \n Incoming: {} \n Outgoing: {}".format(node["label"],node["in"],node["out"] )
+                
+        elif type(item) == QtWidgets.QGraphicsLineItem:
+            text = "Airplane: \n" + item.data(0)     
+            
+        widget = self.window.dock.widget()
+        info = widget.findChild(QtWidgets.QLabel)   #,"Info")
+        info.setText(text) 
+        
+        
+    def listChangeEvent(self,name):
+        ##Function to catch the text change signal
+        if name == "-":
+            return
+        
+        ##Get selected node
+        node = self.window.graph.name_to_node[name]
+        
+        ##Reset previous selected
+        if(self.selection):
+            self.selection.setPen(self.pen)
+            
+        ##Get circle
+        circle_obj = self.window.node_to_circle[node]
+        
+        #Update viz
+        self.updateInfo(circle_obj)
+        circle_obj.setPen(self.selected)
+        self.selection = circle_obj
+        
 class VisGraphicsView(QGraphicsView):
     def __init__(self, scene, parent):
         super(VisGraphicsView, self).__init__(scene, parent)
@@ -86,6 +111,7 @@ class VisGraphicsView(QGraphicsView):
             self.myScene.wasDragg = True
         super().mouseReleaseEvent(event)
 
+        
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -111,8 +137,8 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(800, 600)
         self.show()
         
-        print(self.circle_to_node)
-        print(self.node_to_circle)
+        #print(self.circle_to_node)
+        #print(self.node_to_circle)
         
         
     def addGUI(self):
@@ -125,8 +151,7 @@ class MainWindow(QMainWindow):
         
         layout = QtWidgets.QVBoxLayout()
         widgets = [
-            QtWidgets.QCheckBox(),
-            QtWidgets.QFontComboBox(),
+            self.listSetUp(),
             QtWidgets.QLabel("Info"),
             QtWidgets.QSlider(Qt.Horizontal)
         ]
@@ -141,6 +166,21 @@ class MainWindow(QMainWindow):
         
         self.addDockWidget(area,self.dock)
 
+    def listSetUp(self):
+        
+        node_list = QtWidgets.QComboBox()
+        
+        ##Add each node to the list
+        node_list.addItem("-")
+        for node in self.graph.nodes():
+            node_list.addItem(node["label"])
+            
+        ##Sort list alphabeticly
+        node_list.model().sort(0)
+        node_list.currentTextChanged.connect(self.scene.listChangeEvent)
+        
+        return node_list
+  
     def createGraphicView(self):
         self.scene = VisGraphicsScene(self)
         
