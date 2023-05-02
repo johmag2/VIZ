@@ -13,7 +13,7 @@ import sys, random, math
 from PySide6.QtCore import Qt, QSize, QRectF, QLineF
 import PySide6.QtWidgets as QtWidgets
 from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QSizePolicy, QWidget
-from PySide6.QtGui import QBrush, QPen, QTransform, QPainter
+from PySide6.QtGui import QBrush, QPen, QTransform, QPainter, QColor
 import numpy as np
 
 import graph
@@ -213,8 +213,8 @@ class MainWindow(QMainWindow):
     def createGraphicView(self):
         self.scene = VisGraphicsScene(self)
         
-        self.brush = [QBrush(Qt.yellow),QBrush(Qt.green), QBrush(Qt.blue),QBrush(Qt.red)]
-        
+        self.brush = [QBrush(Qt.green), QBrush(Qt.yellow), QBrush(Qt.red)]
+        #self.brush = [QBrush(Qt.blue),QBrush(Qt.green), QBrush(Qt.yellow), QBrush(Qt.red)] ##https://doc.qt.io/qt-6/qt.html#GlobalColor-enum
         self.view = VisGraphicsView(self.scene, self)
         
         self.setCentralWidget(self.view)
@@ -233,11 +233,12 @@ class MainWindow(QMainWindow):
         total = outgoing + incoming 
         sort_indexes = np.argsort(total)
         
-        colours = np.zeros((len(total)),dtype=np.int16)
-        colours[total > 25] = 1
-        colours[total > 50] = 2
-        colours[total > 100] = 3
-        #colours[total > 100] =4
+        ## Set color of airports
+        colours = np.zeros((len(total)),dtype=np.int16) #Green
+        colours[total > 25] = 1     #Yellow
+        colours[total > 50] = 2     #Red
+        #colours[total > 100] = 3
+        #colours[total > 100] = 4
         nodes = g.nodes()
         
         for index in reversed(sort_indexes):
@@ -259,6 +260,9 @@ class MainWindow(QMainWindow):
         for edge in self.graph.edge_to_line.values():
             self.scene.addLine(edge)
          """   
+        alpha = 150 #Interval is [0,255]
+        color = QColor(0,0,0,alpha)
+        pen = QPen(color,0.5)
         
         for edge in self.graph.edges():
             start = edge.node1
@@ -269,12 +273,12 @@ class MainWindow(QMainWindow):
             x2 = float(end['x'])
             y2 = float(end['y'])
             
-            line = self.scene.addLine(x1,y1,x2,y2)
+            line = self.scene.addLine(x1,y1,x2,y2,pen=pen)
             line.setData(0,"{}->{}".format(start['label'],end['label']))
             
             self.line_to_edge[line] = edge
             self.edge_to_line[edge] = line
-            #break
+            
         
     
 def main():
