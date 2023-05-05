@@ -4,4 +4,3 @@ Edge bundling!
 
 Options menu: buttons to select how to visualize
 
-Interactivity: Airport selected -> edges selected

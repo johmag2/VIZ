@@ -57,7 +57,7 @@ class VisGraphicsScene(QGraphicsScene):
             text = "Airplane: \n" + item.data(0)     
             
         widget = self.window.dock.widget()
-        info = widget.findChild(QtWidgets.QLabel)   #,"Info")
+        info = widget.findChild(QtWidgets.QLabel,"Info")   #,"Info")
         info.setText(text) 
     
     def listChangeEvent(self,name):
@@ -179,14 +179,16 @@ class MainWindow(QMainWindow):
         #text.setParent(self.dock)
         
         layout = QtWidgets.QVBoxLayout()
-        widgets = [
-            self.listSetUp(),
-            QtWidgets.QLabel("Info"),
-            QtWidgets.QSlider(Qt.Horizontal)
-        ]
-
-        for w in widgets:
-            layout.addWidget(w)
+        layout.setAlignment(Qt.AlignTop)
+        
+        layout.addWidget(QtWidgets.QLabel("Select Airport:",objectName='Select'),0)
+        layout.addWidget(self.listSetUp(),1)
+        layout.addWidget(QtWidgets.QLabel("Info:", objectName='InfoTitle'),0)
+        layout.addWidget(QtWidgets.QLabel("", objectName='Info'),1)
+        
+        layout.addWidget(QtWidgets.QLabel("", objectName='Space'),3)
+    
+        layout.addWidget(self.paramSetUp(),3)
             
         #self.dock.setWidget(text)
         widget = QWidget()
@@ -194,10 +196,10 @@ class MainWindow(QMainWindow):
         self.dock.setWidget(widget)
         
         self.addDockWidget(area,self.dock)
-
+        
     def listSetUp(self):
         
-        node_list = QtWidgets.QComboBox()
+        node_list = QtWidgets.QComboBox(objectName='Box')
         
         ##Add each node to the list
         node_list.addItem("-")
@@ -209,8 +211,25 @@ class MainWindow(QMainWindow):
         node_list.currentTextChanged.connect(self.scene.listChangeEvent)
         
         return node_list
-  
-    def createGraphicView(self):
+    
+    def paramSetUp(self):
+        param_box_layout = QtWidgets.QVBoxLayout()
+        param_box = QtWidgets.QGroupBox("Parameters") 
+        
+        widgets = [
+            QtWidgets.QLabel("Testing"),
+            QtWidgets.QSlider(Qt.Horizontal,objectName='Slider')
+        ]
+        
+        for w in widgets:
+            param_box_layout.addWidget(w)
+        
+        #param_box_layout.setAlignment(Qt.AlignBottom)
+        param_box.setLayout(param_box_layout)
+        
+        return param_box
+    
+    def createGraphicView(self):    
         self.scene = VisGraphicsScene(self)
         
         self.brush = [QBrush(Qt.green), QBrush(Qt.yellow), QBrush(Qt.red)]
@@ -279,6 +298,7 @@ class MainWindow(QMainWindow):
             self.line_to_edge[line] = edge
             self.edge_to_line[edge] = line
             
+            break
         
     
 def main():
