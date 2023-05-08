@@ -24,14 +24,16 @@ class VisGraphicsScene(QGraphicsScene):
         self.window = window
         self.selection = []
         self.wasDragg = False
-        self.pen = QPen(Qt.black)
+        self.cir_pen = QPen(Qt.black)
+        self.line_pen = QPen(QColor(0,0,0,150),0.5)
         self.selected = QPen(Qt.red)
 
     def mouseReleaseEvent(self, event): 
         if(self.wasDragg):
             return
         if(self.selection):
-            [item.setPen(self.pen) for item in self.selection]
+            [item.setPen(self.cir_pen) if type(item) == QtWidgets.QGraphicsEllipseItem else item.setPen(self.line_pen) for item in self.selection]
+            #[item.setPen(self.pen) for item in self.selection if ]
             
         item = self.itemAt(event.scenePos(), QTransform())
         
@@ -72,7 +74,8 @@ class VisGraphicsScene(QGraphicsScene):
         
         ##Reset previous selected
         if self.selection:
-            [item.setPen(self.pen) for item in self.selection]
+            [item.setPen(self.cir_pen) if type(item) == QtWidgets.QGraphicsEllipseItem else item.setPen(self.line_pen) for item in self.selection]
+           # [item.setPen(self.pen) for item in self.selection]
             
         ##Get circle
         circle_obj = self.window.node_to_circle[node]
@@ -268,7 +271,7 @@ class MainWindow(QMainWindow):
         
             d = math.sqrt(total[int(i.id)]) 
             
-            ellipse = self.scene.addEllipse(x-d/2, y-d/2, d, d, self.scene.pen,self.brush[c])
+            ellipse = self.scene.addEllipse(x-d/2, y-d/2, d, d, self.scene.cir_pen,self.brush[c])
             ellipse.setData(0,i['label'])
             
             self.circle_to_node[ellipse] = i
@@ -278,11 +281,12 @@ class MainWindow(QMainWindow):
         """
         for edge in self.graph.edge_to_line.values():
             self.scene.addLine(edge)
-         """   
+         """
+        """   
         alpha = 150 #Interval is [0,255]
         color = QColor(0,0,0,alpha)
         pen = QPen(color,0.5)
-        
+        """
         for edge in self.graph.edges():
             start = edge.node1
             x1 = float(start['x'])
@@ -292,7 +296,7 @@ class MainWindow(QMainWindow):
             x2 = float(end['x'])
             y2 = float(end['y'])
             
-            line = self.scene.addLine(x1,y1,x2,y2,pen=pen)
+            line = self.scene.addLine(x1,y1,x2,y2,pen=self.scene.line_pen)
             line.setData(0,"{}->{}".format(start['label'],end['label']))
             
             self.line_to_edge[line] = edge
