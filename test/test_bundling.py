@@ -13,6 +13,7 @@ import sys, random, math
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QSizePolicy
 from PySide6.QtGui import QBrush, QPen, QTransform, QPainter, QColor
+from edge_bundling import *
 
 class VisGraphicsScene(QGraphicsScene):
     def __init__(self):
@@ -72,10 +73,19 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('VIZ Qt for Python Example')
         self.createGraphicView()
         
-        self.graph = GraphMLParser().parse("airlines.graphml/airlines.graphml")
+        self.graph = GraphMLParser().parse("test_graph/test.graphml")
+        self.bundling = EdgeBundling(self.graph.edges())
         
         self.generateLine()
+        self.generateNodes()
         #self.generateCircle()
+        self.bundling.edge_subdivisions()
+        
+        old = copy.copy(self.bundling.subdivision_points_for_edges)
+        self.bundling.forcebundle()
+        
+        self.generateCircles(old,2,1)
+        self.generateCircles(self.bundling.subdivision_points_for_edges,2,2)
         
         #self.setMinimumSize(800, 600)
         self.show()
@@ -92,7 +102,6 @@ class MainWindow(QMainWindow):
         color = QColor(0,0,0,alpha)
         pen = QPen(color,0.5)
         
-        i = 5
         edges = self.graph.edges()
         edges.reverse()
         for edge in edges:
@@ -106,27 +115,30 @@ class MainWindow(QMainWindow):
             
             line = self.scene.addLine(x1,y1,x2,y2,pen=pen)
             line.setData(0,"{}->{}".format(start['label'],end['label']))
-            points = edge_subdivision_points(edge,3)
-            #print(points)
-            self.generateCircles(points)
             
-            if i == 0:
-                break
+    def generateCircles(self,edges,d,color_id):
+        #Generate random data
+        #d = 1
+        #print(points)
+        for points in edges: 
+            for x,y in points:
+                ellipse = self.scene.addEllipse(x-d/2, y-d/2, d, d, self.scene.pen, self.brush[color_id])
             
-            i -= 1
-        
-    def generateCircles(self,points):
+    def generateNodes(self):
         #Generate random data
         d = 5
-        
-        for x,y in points:
+        #print(points)
+        for node in self.graph.nodes():
+            x = float(node['x'])
+            y = float(node['y'])
+            
             ellipse = self.scene.addEllipse(x-d/2, y-d/2, d, d, self.scene.pen, self.brush[0])
 
-def edge_subdivision_points(edge,n=1):
+def edge_subdivision_points(edge,n=0):
     node1 = edge.node1
     node2 = edge.node2
     
-    if n == 1:
+    if n == 0:
         return [node1,node2]
     else:
         start = node1
@@ -134,11 +146,12 @@ def edge_subdivision_points(edge,n=1):
         y = float(start['y'])
         end = node2
         list_of_points = [(x,y)]
-        for i in range(n-1):
+        
+        for i in range(n):
             if i == 1:
                 pass
-            x -= (float(start['x']) - float(end['x']))/n
-            y -= (float(start['y']) - float(end['y']))/n
+            x -= (float(start['x']) - float(end['x']))/(n+1)
+            y -= (float(start['y']) - float(end['y']))/(n+1)
 
             list_of_points.append((x,y))
 
