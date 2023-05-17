@@ -12,7 +12,7 @@ eps = 1e-6
 class EdgeBundling():
     def __init__(self,edges):
         # Hyper-parameters
-        self.K = 0.1
+        self.K = 1e6
         ##Initials
         self.S_initial = 0.4
         self.P_initial = 1
@@ -69,7 +69,10 @@ class EdgeBundling():
         return math.sqrt(math.pow(x1 - x2, 2) + math.pow(y1 - y2, 2))
 
     def distance(self,point1,point2):
-        return math.sqrt(math.pow(point1[0] - point2[1], 2) + math.pow(point1[1] - point2[1], 2))
+        if (abs(point1[0] - point2[0])) < eps and (abs(point1[1] - point2[1])) < eps:
+            return eps
+    
+        return math.sqrt(math.pow(point1[0] - point2[0], 2) + math.pow(point1[1] - point2[1], 2))
     
     def get_spring_force(self,edge_points, edge_idx, point_id, kP):
         ##Compute spring forces
@@ -78,11 +81,15 @@ class EdgeBundling():
         current = edge_points[point_id]
         dist = self.distance(prev_p,current)
         
-        fs1_x = (prev_p[0]-current[0])/dist
-        fs1_y = (prev_p[1]-current[1])/dist
+        fs1_x = (prev_p[0]-current[0]) #/dist
+        #fs1_x = 0 if fs1_x < 0 else fs1_x
+        fs1_y = (prev_p[1]-current[1]) #/dist
+        #fs1_y = 0 if fs1_y < 0 else fs1_y
         
-        fs2_x = (current[0]-next_p[0])/dist
-        fs2_y = (current[1]-next_p[1])/dist
+        fs2_x = -(current[0]-next_p[0]) #/dist
+        #fs2_x = 0 if fs2_x < 0 else fs2_x
+        fs2_y = -(current[1]-next_p[1]) #/dist
+        #fs2_y = 0 if fs2_y < 0 else fs2_y
         
         force_x = kP * (fs1_x + fs2_x)
         force_y = kP * (fs1_y + fs2_y)
@@ -122,14 +129,14 @@ class EdgeBundling():
         
     def forcebundle(self):
         self.S = self.S_initial
-        self.I = self.I_initial
+        self.I = 5 #self.I_initial
         self.P = self.P_initial
 
         self.edge_subdivisions()    ##Creates self.subdivision_points_for_edges
         self.compute_compatibility_list() #self.compatibility_list_for_edge = self.subdivision_points_for_edges #compute_compatibility_list(edges)
         #subdivision_points_for_edge = update_edge_divisions(edges, subdivision_points_for_edge, P)
 
-        for _cycle in range(self.C):
+        for _cycle in range(1):#self.C):
             
             for iteration in range(math.ceil(self.I)):
                 
@@ -150,18 +157,22 @@ class EdgeBundling():
             self.I *= self.I_rate
             self.P *= 1 #self.P_rate
 
+        #[print(point[1]) for point in self.subdivision_points_for_edges]
+        
         return self.subdivision_points_for_edges
     
     def calculate_edge_forces(self,edge,edge_id):
         edge_forces = []
-        kP = self.K / self.edge_length(self.edges[edge_id])
+        #self.K = 1
+        kP = self.K / (self.edge_length(self.edges[edge_id]) * (self.P+1))
+        
         for i in range(1,len(edge)-1):
             
             F_s = self.get_spring_force(edge,edge_id,i,kP)
             F_e = self.get_electrostatic_force(edge,edge_id,i) 
-            
-            F_x = self.S * (F_s[0] + F_e[0])
-            F_y = self.S * (F_s[1] + F_e[1])
+            #print(F_s)
+            F_x = self.S * (F_s[0])# + F_e[0])
+            F_y = self.S * (F_s[1])# + F_e[1])
             edge_forces.append((F_x,F_y))
         
         return edge_forces

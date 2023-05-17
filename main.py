@@ -302,7 +302,7 @@ class MainWindow(QMainWindow):
             self.line_to_edge[line] = edge
             self.edge_to_line[edge] = line
             
-            break
+            #break
         
     
 def main():

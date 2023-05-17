@@ -82,10 +82,12 @@ class MainWindow(QMainWindow):
         self.bundling.edge_subdivisions()
         
         old = copy.copy(self.bundling.subdivision_points_for_edges)
+        #for edge in old
+        
         self.bundling.forcebundle()
         
-        self.generateCircles(old,2,1)
-        self.generateCircles(self.bundling.subdivision_points_for_edges,2,2)
+        self.generateCircles(self.bundling.subdivision_points_for_edges,50,2)
+        self.generateCircles(old,25,1)
         
         #self.setMinimumSize(800, 600)
         self.show()
@@ -100,7 +102,7 @@ class MainWindow(QMainWindow):
     def generateLine(self):
         alpha = 150 #Interval is [0,255]
         color = QColor(0,0,0,alpha)
-        pen = QPen(color,0.5)
+        pen = QPen(color,5)
         
         edges = self.graph.edges()
         edges.reverse()
