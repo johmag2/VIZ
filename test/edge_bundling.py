@@ -14,7 +14,7 @@ eps = 1e-6
 class EdgeBundling():
     def __init__(self,edges):
         # Hyper-parameters
-        self.K = 0.1
+        self.K = 10
         ##Initials
         self.S_initial = 0.4
         self.P_initial = 1
@@ -151,7 +151,7 @@ class EdgeBundling():
         
         current_point = edge_points[i]
         for oe_id in range(len(compatible_edges_list)):
-            o_point = self.subdivision_points_for_edges[oe_id][i] #compatible_edges_list
+            o_point = compatible_edges_list[oe_id][i] #compatible_edges_list
             force_x = current_point[0] - o_point[0]
             force_y = current_point[1] - o_point[1]
             dist = self.distance(current_point,o_point)
@@ -176,8 +176,8 @@ class EdgeBundling():
         
     def forcebundle(self):
         self.S = self.S_initial
-        self.I = 1 #   self.I_initial
-        self.P = 1 #self.P_initial
+        self.I = self.I_initial
+        self.P = self.P_initial
 
         self.create_edge_subdivision(self.P)    ##Creates self.subdivision_points_for_edges
         self.compute_compatibility_list() #self.compatibility_list_for_edge = self.subdivision_points_for_edges #compute_compatibility_list(edges)
@@ -204,7 +204,8 @@ class EdgeBundling():
             self.P *= self.P_rate
             
             self.subdivision_points_for_edge = self.update_edge_subdivisions(self.edges, self.subdivision_points_for_edges, self.P)
-            print(self.subdivision_points_for_edges[0])
+            self.compute_compatibility_list()
+            #print(self.subdivision_points_for_edges[0])
             
         #[print(point[1]) for point in self.subdivision_points_for_edges]
         
