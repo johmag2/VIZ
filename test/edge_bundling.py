@@ -12,7 +12,7 @@ eps = 1e-6
 class EdgeBundling():
     def __init__(self,edges):
         # Hyper-parameters
-        self.K = 1e6
+        self.K = 0
         ##Initials
         self.S_initial = 0.4
         self.P_initial = 1
@@ -26,11 +26,11 @@ class EdgeBundling():
         self.edges = edges
     
     
-    def edge_subdivisions(self):
+    def edge_subdivisions(self,P=1):
         self.subdivision_points_for_edges = []
         
         for i in range(len(self.edges)):
-            self.subdivision_points_for_edges.append(self.edge_subdivision_points(self.edges[i],P=1))
+            self.subdivision_points_for_edges.append(self.edge_subdivision_points(self.edges[i],P))
         
         
     def edge_subdivision_points(self,edge,P=0):
@@ -130,9 +130,9 @@ class EdgeBundling():
     def forcebundle(self):
         self.S = self.S_initial
         self.I = 5 #self.I_initial
-        self.P = self.P_initial
+        self.P = 3 #self.P_initial
 
-        self.edge_subdivisions()    ##Creates self.subdivision_points_for_edges
+        self.edge_subdivisions(self.P)    ##Creates self.subdivision_points_for_edges
         self.compute_compatibility_list() #self.compatibility_list_for_edge = self.subdivision_points_for_edges #compute_compatibility_list(edges)
         #subdivision_points_for_edge = update_edge_divisions(edges, subdivision_points_for_edge, P)
 
@@ -144,7 +144,6 @@ class EdgeBundling():
                     edge_movements = self.calculate_edge_forces(edge,e_id)
                     
                     for i in range(1,self.P+1):
-                        
                         point = self.subdivision_points_for_edges[e_id][i]
                         new_x = point[0] + edge_movements[i-1][0]
                         new_y = point[1] + edge_movements[i-1][1]
@@ -170,9 +169,9 @@ class EdgeBundling():
             
             F_s = self.get_spring_force(edge,edge_id,i,kP)
             F_e = self.get_electrostatic_force(edge,edge_id,i) 
-            #print(F_s)
-            F_x = self.S * (F_s[0])# + F_e[0])
-            F_y = self.S * (F_s[1])# + F_e[1])
+            
+            F_x = self.S * (F_s[0] + F_e[0])
+            F_y = self.S * (F_s[1] + F_e[1])
             edge_forces.append((F_x,F_y))
         
         return edge_forces
@@ -185,4 +184,3 @@ if __name__ == "__main__":
     node2 = edge.node2
     g.show()
     #split_edge(edge)
-    print(edge_length(edge))
