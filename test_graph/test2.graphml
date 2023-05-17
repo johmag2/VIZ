@@ -11,28 +11,28 @@
   <graph edgedefault="undirected">
     <!-- nodes -->
     <node id="0">
-      <data key="x">-50</data>
-      <data key="y">-100</data>
+      <data key="x">-1000</data>
+      <data key="y">-1000</data>
     </node>
     <node id="1">
-      <data key="x">-50</data>
-      <data key="y">100</data>
+      <data key="x">-1000</data>
+      <data key="y">1000</data>
     </node>
     <node id="2">
       <data key="x">0</data>
-      <data key="y">-100</data>
+      <data key="y">-1000</data>
     </node>
     <node id="3">
       <data key="x">0</data>
-      <data key="y">100</data>
+      <data key="y">1000</data>
     </node>
     <node id="4">
-      <data key="x">50</data>
-      <data key="y">-100</data>
+      <data key="x">1000</data>
+      <data key="y">-1000</data>
     </node>
     <node id="5">
-      <data key="x">50</data>
-      <data key="y">100</data>
+      <data key="x">1000</data>
+      <data key="y">1000</data>
     </node>
 
     <edge id="0" source="0" target="1">

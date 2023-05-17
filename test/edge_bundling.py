@@ -3,6 +3,8 @@ import os
 import sys
 import math
 
+
+
 sys.path.append("../")
 from pygraphml import GraphMLParser
 from pygraphml import Graph
@@ -12,7 +14,7 @@ eps = 1e-6
 class EdgeBundling():
     def __init__(self,edges):
         # Hyper-parameters
-        self.K = 0
+        self.K = 0.1
         ##Initials
         self.S_initial = 0.4
         self.P_initial = 1
@@ -26,12 +28,11 @@ class EdgeBundling():
         self.edges = edges
     
     
-    def edge_subdivisions(self,P=1):
+    def create_edge_subdivision(self,P=1):
         self.subdivision_points_for_edges = []
         
         for i in range(len(self.edges)):
             self.subdivision_points_for_edges.append(self.edge_subdivision_points(self.edges[i],P))
-        
         
     def edge_subdivision_points(self,edge,P=0):
         node1 = edge.node1
@@ -56,7 +57,53 @@ class EdgeBundling():
 
             list_of_points.append((float(end['x']),float(end['y']) ))
             return list_of_points
+    
+    def update_edge_subdivisions(self,edges, subdivision_points_for_edge, P):
+        for edge_idx in range(len(edges)):
+            if P == 1:
+                return subdivision_points_for_edge
+            else:
+                divided_edge_length = self.compute_divided_edge_length(subdivision_points_for_edge[edge_idx])
+                segment_length = divided_edge_length / (P + 1)
+                current_segment_length = segment_length
+                new_subdivision_points = list()
+                source = edges[edge_idx].node1 # source
+                
+                new_subdivision_points.append((float(source['x']),float(source['y']))) 
+                for i in range(1, len(subdivision_points_for_edge[edge_idx])):
+                    old_segment_length = self.distance(subdivision_points_for_edge[edge_idx][i],
+                                                            subdivision_points_for_edge[edge_idx][i - 1])
+                    while old_segment_length > current_segment_length:
+                        percent_position = current_segment_length / old_segment_length
+                        new_subdivision_point_x = subdivision_points_for_edge[edge_idx][i - 1][0]
+                        new_subdivision_point_y = subdivision_points_for_edge[edge_idx][i - 1][1]
 
+                        new_subdivision_point_x += percent_position * (
+                                    subdivision_points_for_edge[edge_idx][i][0] - subdivision_points_for_edge[edge_idx][
+                                i - 1][0])
+                        new_subdivision_point_y += percent_position * (
+                                    subdivision_points_for_edge[edge_idx][i][1] - subdivision_points_for_edge[edge_idx][
+                                i - 1][1])
+                        new_subdivision_points.append((new_subdivision_point_x, new_subdivision_point_y))
+
+                        old_segment_length -= current_segment_length
+                        current_segment_length = segment_length
+
+                    current_segment_length -= old_segment_length
+
+                target = edges[edge_idx].node2  # target
+                new_subdivision_points.append((float(target['x']),float(target['y'])))
+                subdivision_points_for_edge[edge_idx] = new_subdivision_points
+
+        return subdivision_points_for_edge
+
+    def compute_divided_edge_length(self,edge):
+        tot_len = 0
+        for i in range(1,len(edge)):
+            tot_len += self.distance(edge[i-1],edge[i])
+        
+        return tot_len
+        
     def edge_length(self,edge):
         ##Return euclidian distance of edge
         node1 = edge.node1
@@ -104,7 +151,7 @@ class EdgeBundling():
         
         current_point = edge_points[i]
         for oe_id in range(len(compatible_edges_list)):
-            o_point = compatible_edges_list[oe_id][i]
+            o_point = self.subdivision_points_for_edges[oe_id][i] #compatible_edges_list
             force_x = current_point[0] - o_point[0]
             force_y = current_point[1] - o_point[1]
             dist = self.distance(current_point,o_point)
@@ -129,14 +176,14 @@ class EdgeBundling():
         
     def forcebundle(self):
         self.S = self.S_initial
-        self.I = 5 #self.I_initial
-        self.P = 3 #self.P_initial
+        self.I = 1 #   self.I_initial
+        self.P = 1 #self.P_initial
 
-        self.edge_subdivisions(self.P)    ##Creates self.subdivision_points_for_edges
+        self.create_edge_subdivision(self.P)    ##Creates self.subdivision_points_for_edges
         self.compute_compatibility_list() #self.compatibility_list_for_edge = self.subdivision_points_for_edges #compute_compatibility_list(edges)
         #subdivision_points_for_edge = update_edge_divisions(edges, subdivision_points_for_edge, P)
 
-        for _cycle in range(1):#self.C):
+        for _cycle in range(self.C):
             
             for iteration in range(math.ceil(self.I)):
                 
@@ -154,8 +201,11 @@ class EdgeBundling():
             
             self.S *= self.S_rate
             self.I *= self.I_rate
-            self.P *= 1 #self.P_rate
-
+            self.P *= self.P_rate
+            
+            self.subdivision_points_for_edge = self.update_edge_subdivisions(self.edges, self.subdivision_points_for_edges, self.P)
+            print(self.subdivision_points_for_edges[0])
+            
         #[print(point[1]) for point in self.subdivision_points_for_edges]
         
         return self.subdivision_points_for_edges
@@ -176,6 +226,7 @@ class EdgeBundling():
         
         return edge_forces
     
+
 if __name__ == "__main__":
     parser = GraphMLParser()
     g = parser.parse("airlines.graphml/airlines.graphml")

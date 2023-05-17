@@ -73,13 +73,14 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('VIZ Qt for Python Example')
         self.createGraphicView()
         
-        self.graph = GraphMLParser().parse("test_graph/test2.graphml")
+        self.graph = GraphMLParser().parse("test_graph/test_ES.graphml")
+        #self.graph = GraphMLParser().parse("airlines.graphml/airlines.graphml")
         self.bundling = EdgeBundling(self.graph.edges())
         
         self.generateLine()
         self.generateNodes()
         #self.generateCircle()
-        self.bundling.edge_subdivisions()
+        self.bundling.create_edge_subdivision(1)
         
         old = copy.copy(self.bundling.subdivision_points_for_edges)
         #for edge in old
@@ -88,6 +89,9 @@ class MainWindow(QMainWindow):
         
         self.generateCircles(self.bundling.subdivision_points_for_edges,10,2)
         self.generateCircles(old,5,1)
+        
+        #new = self.bundling.update_edge_subdivisions(self.graph.edges(),self.bundling.subdivision_points_for_edges,4)
+        #self.generateCircles(new,5,1)
         
         #self.setMinimumSize(800, 600)
         self.show()
