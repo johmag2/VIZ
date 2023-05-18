@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('VIZ Qt for Python Example')
         self.createGraphicView()
         
-        self.graph = GraphMLParser().parse("test_graph/test_ES.graphml")
+        self.graph = GraphMLParser().parse("test_graph/test copy.graphml")
         #self.graph = GraphMLParser().parse("airlines.graphml/airlines.graphml")
         self.bundling = EdgeBundling(self.graph.edges())
         

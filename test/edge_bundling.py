@@ -14,7 +14,7 @@ eps = 1e-6
 class EdgeBundling():
     def __init__(self,edges):
         # Hyper-parameters
-        self.K = 10
+        self.K = 0.1
         ##Initials
         self.S_initial = 0.4
         self.P_initial = 1
@@ -113,6 +113,9 @@ class EdgeBundling():
         x2 = float(node2['x'])
         y2 = float(node2['y'])
         
+        if (abs(x1 - x2)) < eps and (abs(y1 - y2)) < eps:
+            return eps
+        
         return math.sqrt(math.pow(x1 - x2, 2) + math.pow(y1 - y2, 2))
 
     def distance(self,point1,point2):
@@ -128,19 +131,19 @@ class EdgeBundling():
         current = edge_points[point_id]
         dist = self.distance(prev_p,current)
         
-        fs1_x = (prev_p[0]-current[0]) #/dist
+        fs1_x = (prev_p[0]-current[0])
         #fs1_x = 0 if fs1_x < 0 else fs1_x
-        fs1_y = (prev_p[1]-current[1]) #/dist
+        fs1_y = (prev_p[1]-current[1])
         #fs1_y = 0 if fs1_y < 0 else fs1_y
         
-        fs2_x = -(current[0]-next_p[0]) #/dist
+        fs2_x = -(current[0]-next_p[0])
         #fs2_x = 0 if fs2_x < 0 else fs2_x
-        fs2_y = -(current[1]-next_p[1]) #/dist
+        fs2_y = -(current[1]-next_p[1])
         #fs2_y = 0 if fs2_y < 0 else fs2_y
         
         force_x = kP * (fs1_x + fs2_x)
         force_y = kP * (fs1_y + fs2_y)
-        
+        #print(fs1_x,fs2_x)
         return (force_x, force_y)
 
     def get_electrostatic_force(self,edge_points, edge_idx, i):
@@ -172,7 +175,42 @@ class EdgeBundling():
             del o_list[e_id]
             
             self.compatibility_list_for_edge.append(o_list)
+     
+    def edge_as_vector(self,edge):
+        node1 = edge.node1
+        node2 = edge.node2
+        x1 = float(node1['x'])
+        y1 = float(node1['y'])
+        x2 = float(node2['x'])
+        y2 = float(node2['y'])
+        return (x2-x1,y2-y1)
+    
+    def compatibility_score(self,edge,oedge):
+        vec = self.edge_as_vector(edge)
+        edge_len = self.edge_length(edge)
+        o_vec = self.edge_as_vector(oedge)
+        oe_len = self.edge_length(oedge)
         
+        ## Angle compatibility
+        dot_prod = vec[0]*o_vec[0] + vec[1]*o_vec[1]
+        angle_score = dot_prod/(edge_len * oe_len)
+        
+        ## Scale comp
+        avg_len = (edge_len+oe_len)/2.0
+        scale_score = 2.0 / (avg_len*min(edge_len, oe_len) + max(edge_len, oe_len)/avg_len)
+        
+        ## Position comp
+        midP = ((edge.node1['x'] + edge.node2['x']) / 2.0,
+                (edge.node1['y'] + edge.node2['y']) / 2.0)
+        midQ = ((oedge.node1['x'] + oedge.node2['x']) / 2.0,
+                     (oedge.node1['y'] + oedge.node2['y']) / 2.0)
+        pos_score =  avg_len / (avg_len + self.distance(midP, midQ))
+        
+        ## vis comp
+        
+        
+        return 1
+     
         
     def forcebundle(self):
         self.S = self.S_initial
@@ -182,8 +220,8 @@ class EdgeBundling():
         self.create_edge_subdivision(self.P)    ##Creates self.subdivision_points_for_edges
         self.compute_compatibility_list() #self.compatibility_list_for_edge = self.subdivision_points_for_edges #compute_compatibility_list(edges)
         #subdivision_points_for_edge = update_edge_divisions(edges, subdivision_points_for_edge, P)
-
-        for _cycle in range(self.C):
+    
+        for cycle in range(self.C):
             
             for iteration in range(math.ceil(self.I)):
                 
