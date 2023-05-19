@@ -6,359 +6,411 @@ import numpy as np
 
 sys.path.append("../")
 from pygraphml import GraphMLParser
-from pygraphml import Graph
+from pygraphml import Graph,Node,Edge
 import copy
 import time
 
-eps = 1e-4
-class EdgeBundling():
-    def __init__(self,edges):
-        # Hyper-parameters
-        self.K = 0.3
-        ##Initials
-        self.S_initial = 0.4
-        self.Ps = [1,2,4,6,8,10,12]
-        self.P_initial = 1
-        self.I_initial = 50
-        self.C = 6
-        ##Rate
-        self.S_rate = 0.5
-        self.P_rate = 1.5 #2
-        self.I_rate = 0.6666667
+from numba.experimental import jitclass
+from numba import float32, jit, prange, float64, njit
+from numba.typed import List
+from numba.types import ListType, int16, uint8
+#from tqdm.auto import tqdm
+
+FASTMATH = True
+eps = 1e-6
+K = 0.5
+
+##Initials
+S_initial = 0.4
+P_initial = 1
+I_initial = 50
+C = 6
+##Rate
+S_rate = 0.5
+P_rate = 2
+I_rate = 0.6666667
+
+@jitclass([('x', float32), ('y', float32)])
+class Point:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+
+@jitclass([('source', Point.class_type.instance_type), ('target', Point.class_type.instance_type),('id',int16)])
+class Edge:
+    def __init__(self, source, target,edge_id):
+        self.source = source
+        self.target = target
+        self.id = edge_id
+
+Force = Point
+
+pt_cls = Point.class_type.instance_type
+#list_of_points = ListType(pt_cls)
+@njit(fastmath=FASTMATH)
+def edge_subdivision_points(edge,P=0):
+    list_of_points = List.empty_list(pt_cls)
+    if P == 0:
+        list_of_points.append(edge.source)
+        list_of_points.append(edge.target)
+        return list_of_points
+    else:
+        start = edge.source
+        x = start.x
+        y = start.y
+        end = edge.target
+        list_of_points.append(edge.source)
         
-        self.edges = edges
+        for i in range(P):
+            if i == 1:
+                pass
+            x -= (start.x - end.x)/(P+1)
+            y -= (start.y - end.y)/(P+1)
+            
+            list_of_points.append(Point(x,y))
+
+        list_of_points.append(edge.target)
+        
+        return list_of_points
     
+pt_cls = Point.class_type.instance_type
+list_of_pts = ListType(pt_cls)
+@njit(fastmath=FASTMATH)
+def create_edge_subdivision(edges,P=1):
+    subdivision_points_for_edges = List.empty_list(list_of_pts)
     
-    def create_edge_subdivision(self,P=1):
-        self.subdivision_points_for_edges = []
+    for i in range(len(edges)):
+        subdivision_points_for_edges.append(edge_subdivision_points(edges[i],P))
         
-        for i in range(len(self.edges)):
-            self.subdivision_points_for_edges.append(self.edge_subdivision_points(self.edges[i],P))
-        
-    def edge_subdivision_points(self,edge,P=0):
-        node1 = edge.node1
-        node2 = edge.node2
-        
-        if P == 0:
-            return [node1,node2]
+    return subdivision_points_for_edges
+
+@njit(fastmath=FASTMATH)
+def update_edge_subdivisions(edges, subdivision_points_for_edge, P):
+    for edge_idx in range(len(edges)):
+        if P == 1:
+            return subdivision_points_for_edge
         else:
-            start = node1
-            x = float(start['x']) 
-            y = float(start['y'])
-            end = node2
-            list_of_points = [(x,y)]
-            
-            for i in range(P):
-                if i == 1:
-                    pass
-                x -= (float(start['x']) - float(end['x']))/(P+1)
-                y -= (float(start['y']) - float(end['y']))/(P+1)
+            edge = subdivision_points_for_edge[edge_idx]
+            divided_edge_length = compute_divided_edge_length(edge)
+            segment_length = divided_edge_length / (P + 1)
+            current_segment_length = segment_length
+            new_subdivision_points = List()
+            new_subdivision_points.append(edges[edge_idx].source)  # source
+            for i in range(1, len(subdivision_points_for_edge[edge_idx])):
+                old_segment_length = distance(subdivision_points_for_edge[edge_idx][i],
+                                                        subdivision_points_for_edge[edge_idx][i - 1])
+                while old_segment_length > current_segment_length:
+                    percent_position = current_segment_length / old_segment_length
+                    new_subdivision_point_x = subdivision_points_for_edge[edge_idx][i - 1].x
+                    new_subdivision_point_y = subdivision_points_for_edge[edge_idx][i - 1].y
 
-                list_of_points.append((x,y))
+                    new_subdivision_point_x += percent_position * (
+                                subdivision_points_for_edge[edge_idx][i].x - subdivision_points_for_edge[edge_idx][
+                            i - 1].x)
+                    new_subdivision_point_y += percent_position * (
+                                subdivision_points_for_edge[edge_idx][i].y - subdivision_points_for_edge[edge_idx][
+                            i - 1].y)
+                    new_subdivision_points.append(Point(new_subdivision_point_x, new_subdivision_point_y))
 
-            list_of_points.append((float(end['x']),float(end['y']) ))
-            return list_of_points
+                    old_segment_length -= current_segment_length
+                    current_segment_length = segment_length
+
+                current_segment_length -= old_segment_length
+
+            target = edges[edge_idx].target
+            new_subdivision_points.append(target)  # target
+            subdivision_points_for_edge[edge_idx] = new_subdivision_points
+
+    return subdivision_points_for_edge
+
+
+@njit(fastmath=FASTMATH)
+def compute_divided_edge_length(edge):
+    tot_len = 0.0
+    for i in range(1,len(edge)):
+        tot_len += distance(edge[i-1],edge[i])
     
-    def update_edge_subdivisions(self,edges, subdivision_points_for_edge, P):
-        for edge_idx in range(len(edges)):
-            if P == 1:
-                return subdivision_points_for_edge
-            else:
-                divided_edge_length = self.compute_divided_edge_length(subdivision_points_for_edge[edge_idx])
-                segment_length = divided_edge_length / (P + 1)
-                current_segment_length = segment_length
-                new_subdivision_points = list()
-                source = edges[edge_idx].node1 # source
+    return tot_len
+    
+@njit(fastmath=FASTMATH)
+def edge_length(edge):
+    ##Return euclidian distance of edge
+    source = edge.source
+    target = edge.target
+    x1 = source.x
+    y1 = source.y
+    x2 = target.x
+    y2 = target.y
+    
+    if (abs(x1 - x2)) < eps and (abs(y1 - y2)) < eps:
+        return eps
+    
+    return math.sqrt(math.pow(x1 - x2, 2) + math.pow(y1 - y2, 2))
+
+@njit(fastmath=FASTMATH)
+def distance(point1,point2):
+    if (abs(point1.x - point2.x)) < eps and (abs(point1.y - point2.y)) < eps:
+        return eps
+
+    return math.sqrt(math.pow(point1.x - point2.x, 2) + math.pow(point1.y - point2.y, 2))
+
+@njit(fastmath=FASTMATH)    
+def get_spring_force(edge_points, edge_idx, point_id, kP):
+    ##Compute spring forces
+    prev_p = edge_points[point_id - 1]
+    next_p = edge_points[point_id + 1]
+    current = edge_points[point_id]
+    dist = distance(prev_p,current)
+    
+    fs1_x = (prev_p.x-current.x)
+    #fs1_x = 0 if fs1_x < 0 else fs1_x
+    fs1_y = (prev_p.y-current.y)
+    #fs1_y = 0 if fs1_y < 0 else fs1_y
+    
+    fs2_x = -(current.x-next_p.x)
+    #fs2_x = 0 if fs2_x < 0 else fs2_x
+    fs2_y = -(current.y-next_p.y)
+    #fs2_y = 0 if fs2_y < 0 else fs2_y
+    
+    force_x = kP * (fs1_x + fs2_x)
+    force_y = kP * (fs1_y + fs2_y)
+    #print(fs1_x,fs2_x)
+    return Force(force_x, force_y)
+
+@njit(fastmath=FASTMATH)
+def custom_edge_length(edge):
+    return math.sqrt(math.pow(edge.source.x - edge.target.x, 2) + math.pow(edge.source.y - edge.target.y, 2))
+
+@njit(fastmath=FASTMATH)
+def get_electrostatic_force(subdivision_points_for_edges,compatible_edges_list,edge_points, edge_idx, i):
+    ##Compute electostatic forces
+    sum_of_forces_x = 0.0
+    sum_of_forces_y = 0.0
+    
+    #compatible_edges_list = compatibility_list_for_edge[edge_idx]
+    current_point = edge_points[i]
+    
+    for oe_id in range(len(compatible_edges_list)):
+        other_edge_id = compatible_edges_list[oe_id]#[0]
+        #score = compatible_edges_list[oe_id][1]
+        o_point = subdivision_points_for_edges[other_edge_id][i] #compatible_edges_list
+        
+        force_x = o_point.x - current_point.x
+        force_y = o_point.y - current_point.y
+        
+        #print(dist)
+        if (math.fabs(force_x) > eps) or (math.fabs(force_y) > eps):
+            divisor = custom_edge_length(Edge(o_point,current_point,-1))
+            diff = 1/divisor**2
+            #dist = distance(current_point,o_point)
+
+            sum_of_forces_x += force_x * diff #/ dist**2
+            sum_of_forces_y += force_y * diff #/ dist**2
+            
+    #print(sum_of_forces_x, sum_of_forces_y) 
+        
+    return Force(sum_of_forces_x, sum_of_forces_y)    
+  
+def compute_compatibility_list(edges):
+    ##To Do: Only return other compatible edges
+    
+    compatibility_list_for_edge = List()
+    
+    for _ in edges:
+        compatibility_list_for_edge.append(List.empty_list(int16))
+    comp_thresh = 0.1
+    processed_edges = 0
+    
+    for edge in edges:
+        e_id = edge.id
+        
+        for oedge in edges[processed_edges:]:
+            o_id = oedge.id
+            
+            if e_id != o_id:
                 
-                new_subdivision_points.append((float(source['x']),float(source['y']))) 
-                for i in range(1, len(subdivision_points_for_edge[edge_idx])):
-                    old_segment_length = self.distance(subdivision_points_for_edge[edge_idx][i],
-                                                            subdivision_points_for_edge[edge_idx][i - 1])
-                    while old_segment_length > current_segment_length:
-                        percent_position = current_segment_length / old_segment_length
-                        new_subdivision_point_x = subdivision_points_for_edge[edge_idx][i - 1][0]
-                        new_subdivision_point_y = subdivision_points_for_edge[edge_idx][i - 1][1]
-
-                        new_subdivision_point_x += percent_position * (
-                                    subdivision_points_for_edge[edge_idx][i][0] - subdivision_points_for_edge[edge_idx][
-                                i - 1][0])
-                        new_subdivision_point_y += percent_position * (
-                                    subdivision_points_for_edge[edge_idx][i][1] - subdivision_points_for_edge[edge_idx][
-                                i - 1][1])
-                        new_subdivision_points.append((new_subdivision_point_x, new_subdivision_point_y))
-
-                        old_segment_length -= current_segment_length
-                        current_segment_length = segment_length
-
-                    current_segment_length -= old_segment_length
-
-                target = edges[edge_idx].node2  # target
-                new_subdivision_points.append((float(target['x']),float(target['y'])))
-                subdivision_points_for_edge[edge_idx] = new_subdivision_points
-
-        return subdivision_points_for_edge
-
-    def compute_divided_edge_length(self,edge):
-        tot_len = 0
-        for i in range(1,len(edge)):
-            tot_len += self.distance(edge[i-1],edge[i])
-        
-        return tot_len
-        
-    def edge_length(self,edge):
-        ##Return euclidian distance of edge
-        node1 = edge.node1
-        node2 = edge.node2
-        x1 = float(node1['x'])
-        y1 = float(node1['y'])
-        x2 = float(node2['x'])
-        y2 = float(node2['y'])
-        
-        if (abs(x1 - x2)) < eps and (abs(y1 - y2)) < eps:
-            return eps
-        
-        return math.sqrt(math.pow(x1 - x2, 2) + math.pow(y1 - y2, 2))
-
-    def distance(self,point1,point2):
-        if (abs(point1[0] - point2[0])) < eps and (abs(point1[1] - point2[1])) < eps:
-            return eps
-    
-        return math.sqrt(math.pow(point1[0] - point2[0], 2) + math.pow(point1[1] - point2[1], 2))
-    
-    def get_spring_force(self,edge_points, edge_idx, point_id, kP):
-        ##Compute spring forces
-        prev_p = edge_points[point_id - 1]
-        next_p = edge_points[point_id + 1]
-        current = edge_points[point_id]
-        dist = self.distance(prev_p,current)
-        
-        fs1_x = (prev_p[0]-current[0])
-        #fs1_x = 0 if fs1_x < 0 else fs1_x
-        fs1_y = (prev_p[1]-current[1])
-        #fs1_y = 0 if fs1_y < 0 else fs1_y
-        
-        fs2_x = -(current[0]-next_p[0])
-        #fs2_x = 0 if fs2_x < 0 else fs2_x
-        fs2_y = -(current[1]-next_p[1])
-        #fs2_y = 0 if fs2_y < 0 else fs2_y
-        
-        force_x = kP * (fs1_x + fs2_x)
-        force_y = kP * (fs1_y + fs2_y)
-        #print(fs1_x,fs2_x)
-        return (force_x, force_y)
-
-    def get_electrostatic_force(self,edge_points, edge_idx, i):
-        ##Compute electostatic forces
-        sum_of_forces_x = 0.0
-        sum_of_forces_y = 0.0
-        
-        compatible_edges_list = self.compatibility_list_for_edge[edge_idx]
-        current_point = edge_points[i]
-        
-        for oe_id in range(len(compatible_edges_list)):
-            other_edge_id = compatible_edges_list[oe_id][0]
-            #score = compatible_edges_list[oe_id][1]
-            o_point = self.subdivision_points_for_edges[other_edge_id][i] #compatible_edges_list
-            
-            force_x = o_point[0] - current_point[0]
-            force_y = o_point[1] - current_point[1]
-            dist = self.distance(current_point,o_point)
-            
-            #print(dist)
-            if (math.fabs(force_x) > eps) or (math.fabs(force_y) > eps):
-                dist = self.distance(current_point,o_point)
-    
-                sum_of_forces_x += force_x / dist**2
-                sum_of_forces_y += force_y / dist**2
-                
-        #print(sum_of_forces_x, sum_of_forces_y) 
-            
-        return (sum_of_forces_x, sum_of_forces_y)    
-    
-    def compute_compatibility_list(self):
-        ##To Do: Only return other compatible edges
-        
-        self.compatibility_list_for_edge = []
-        self.scores = []
-        for _ in self.edges:
-            self.compatibility_list_for_edge.append([])
-        comp_thresh = 0.1
-        processed_edges = 0
-        
-        for edge in self.edges:
-            e_id = edge.id
-            
-            for oedge in self.edges[processed_edges:]:
-                o_id = oedge.id
-                
-                if e_id != o_id:
+                score = compatibility_score(edge,oedge)
+                #print(score)    
+                if score >= comp_thresh:
+                    compatibility_list_for_edge[int(e_id)].append(o_id)#(o_id,score))
+                    compatibility_list_for_edge[int(o_id)].append(e_id)#(e_id,score))
                     
-                    score = self.compatibility_score(edge,oedge)
-                    #print(score)    
-                    if score >= comp_thresh:
-                        self.compatibility_list_for_edge[int(e_id)].append((int(o_id),score))
-                        self.compatibility_list_for_edge[int(o_id)].append((int(e_id),score))
-                        
-                        
-            processed_edges += 1
-        #self.compatibility_list_for_edge = np.array(self.compatibility_list_for_edge) 
-        #print(self.compatibility_list_for_edge)
+                    
+        processed_edges += 1
+    #compatibility_list_for_edge = np.array(compatibility_list_for_edge) 
+    #print(compatibility_list_for_edge)
+    return compatibility_list_for_edge
      
-     
-    def edge_as_vector(self,edge):
-        node1 = edge.node1
-        node2 = edge.node2
-        x1 = float(node1['x'])
-        y1 = float(node1['y'])
-        x2 = float(node2['x'])
-        y2 = float(node2['y'])
-        return (x2-x1,y2-y1)
+@njit(fastmath=FASTMATH)     
+def edge_as_vector(edge):
+    source = edge.source
+    target = edge.target
+    x1 = source.x
+    y1 = source.y
+    x2 = target.x
+    y2 = target.y
+    return Point(x2-x1,y2-y1)
+ 
+@njit(fastmath=FASTMATH)   
+def compatibility_score(edge,oedge):
+    #return 1
+    vec = edge_as_vector(edge)
+    edge_len = edge_length(edge)
+    o_vec = edge_as_vector(oedge)
+    oe_len = edge_length(oedge)
     
-    def compatibility_score(self,edge,oedge):
-        return 1
-        vec = self.edge_as_vector(edge)
-        edge_len = self.edge_length(edge)
-        o_vec = self.edge_as_vector(oedge)
-        oe_len = self.edge_length(oedge)
-        
-        source_point = (float(edge.node1['x']),float(edge.node1['y']))
-        target_point = (float(edge.node2['x']),float(edge.node2['y']))
-        osource_point = (float(oedge.node1['x']),float(oedge.node1['y']))
-        otarget_point = (float(oedge.node2['x']),float(oedge.node2['y']))
-        
-        ## Angle compatibility
-        dot_prod = vec[0]*o_vec[0] + vec[1]*o_vec[1]
-        angle_score = math.fabs(dot_prod/(edge_len * oe_len))
-        
-        ## Scale comp
-        avg_len = (edge_len+oe_len)/2.0
-        scale_score = 2.0 / (avg_len/min(edge_len, oe_len) + max(edge_len, oe_len)/avg_len)
-        
-        ## Position comp
-        midP = ((source_point[0] + target_point[0]) / 2.0,
-                (source_point[1] + target_point[1]) / 2.0)
-        midQ = ((osource_point[0] + float(oedge.node2['x'])) / 2.0,
-                     (osource_point[1] + otarget_point[1]) / 2.0)
-        pos_score =  avg_len / (avg_len + self.distance(midP, midQ))
-        
-        ## vis comp
-        """
-        I0 = self.project_point_on_line(osource_point,source_point,target_point)
-        I1 = self.project_point_on_line(otarget_point,source_point,target_point)
-        dist = self.distance(I0,I1)
-        midI = ((I0[0] + I1[0]) / 2.0, (I0[1] + I1[1]) / 2.0)
-        V_pq = max(0, 1 - 2 * self.distance(midP, midI) / dist)
-        
-        I0 = self.project_point_on_line(source_point,osource_point,otarget_point)
-        I1 = self.project_point_on_line(target_point,osource_point,otarget_point)
-        dist = self.distance(I0,I1)
-        midI = ((I0[0] + I1[0]) / 2.0, (I0[1] + I1[1]) / 2.0)
-        V_qp = max(0, 1 - 2 * self.distance(midQ, midI) / dist)
-        #print(V_pq,V_qp)
-        vis_score = min(V_pq,V_qp)
-        """
-        vis_score = 0.5
-        #print(angle_score,scale_score,pos_score)
-        
-        
-        return angle_score*scale_score*pos_score*vis_score
+    source_point = edge.source
+    target_point = edge.target
+    osource_point = edge.source
+    otarget_point = oedge.target
     
-    def project_point_on_line(self,point, edge_source_point,edge_target_point):
-        
-        L = math.sqrt(math.pow(edge_target_point[0] - edge_source_point[0], 2) + math.pow((edge_target_point[1] - edge_source_point[1]), 2))
-        r = ((edge_target_point[1] - point[1]) * (edge_source_point[1] - edge_target_point[1]) - 
-             (edge_source_point[0] - point[0]) * (edge_target_point[0] - edge_source_point[0])) / math.pow(L, 2)
-        
-        return (edge_source_point[0] + r * (edge_target_point[0] - edge_source_point[0]),
-                edge_source_point[1] + r * (edge_target_point[1]- edge_source_point[1]))
-        
-    def forcebundle(self):
-        self.S = self.S_initial
-        self.I = self.I_initial
-        self.P = self.P_initial
+    ## Angle compatibility
+    dot_prod = vec.x*o_vec.x + vec.y*o_vec.y
+    angle_score = math.fabs(dot_prod/(edge_len * oe_len))
+    
+    ## Scale comp
+    avg_len = (edge_len+oe_len)/2.0
+    scale_score = 2.0 / (avg_len/min(edge_len, oe_len) + max(edge_len, oe_len)/avg_len)
+    
+    ## Position comp
+    midP = Point((source_point.x + target_point.x) / 2.0, (source_point.y + target_point.y) / 2.0)
+    midQ = Point((osource_point.x + oedge.target.x) / 2.0,(osource_point.y + otarget_point.y) / 2.0)
+    pos_score =  avg_len / (avg_len + distance(midP, midQ))
+    
+    ## vis comp
+    """
+    I0 = project_point_on_line(osource_point,source_point,target_point)
+    I1 = project_point_on_line(otarget_point,source_point,target_point)
+    dist = distance(I0,I1)
+    midI = ((I0.x + I1.x) / 2.0, (I0.y + I1.y) / 2.0)
+    V_pq = max(0, 1 - 2 * distance(midP, midI) / dist)
+    
+    I0 = project_point_on_line(source_point,osource_point,otarget_point)
+    I1 = project_point_on_line(target_point,osource_point,otarget_point)
+    dist = distance(I0,I1)
+    midI = ((I0.x + I1.x) / 2.0, (I0.y + I1.y) / 2.0)
+    V_qp = max(0, 1 - 2 * distance(midQ, midI) / dist)
+    #print(V_pq,V_qp)
+    vis_score = min(V_pq,V_qp)
+    """
+    vis_score = 1
+    #print(angle_score,scale_score,pos_score)
+    
+    
+    return angle_score*scale_score*pos_score*vis_score
 
-        self.create_edge_subdivision(self.P)    ##Creates self.subdivision_points_for_edges
-        self.compute_compatibility_list() #self.compatibility_list_for_edge = self.subdivision_points_for_edges #compute_compatibility_list(edges)
-        #subdivision_points_for_edge = update_edge_divisions(edges, subdivision_points_for_edge, P)
+@njit(fastmath=FASTMATH)   
+def project_point_on_line(point, edge_source_point,edge_target_point):
     
-        for cycle in range(self.C):
-            print("Cycle:{}".format(cycle))
-            for iteration in range(math.ceil(self.I)):
-                
-                for e_id,edge in enumerate(self.subdivision_points_for_edges):
-                    edge_movements = self.calculate_edge_forces(edge,e_id)
-                    
-                    
-                    
-                    for i in range(1,self.P+1):
-                        point = self.subdivision_points_for_edges[e_id][i]
-                        new_x = point[0] + edge_movements[i-1][0]
-                        new_y = point[1] + edge_movements[i-1][1]
-                        self.subdivision_points_for_edges[e_id][i] = (new_x,new_y)
+    L = math.sqrt(math.pow(edge_target_point.x - edge_source_point.x, 2) + math.pow((edge_target_point.y - edge_source_point.y), 2))
+    r = ((edge_target_point.y - point.y) * (edge_source_point.y - edge_target_point.y) - 
+            (edge_source_point.x - point.x) * (edge_target_point.x - edge_source_point.x)) / math.pow(L, 2)
     
-                        #print(self.distance(point,(new_x,new_y)))  
-            
-            self.S *= self.S_rate
-            self.I *= self.I_rate
-            self.P = round(self.P * self.P_rate)
-            
-            #self.P = self.Ps[cycle+1]
-            self.subdivision_points_for_edge = self.update_edge_subdivisions(self.edges, self.subdivision_points_for_edges, self.P)
-            
-            #print(self.subdivision_points_for_edges[0])
-            
-        #[print(point[1]) for point in self.subdivision_points_for_edges]
+    return (edge_source_point.x + r * (edge_target_point.x - edge_source_point.x),
+            edge_source_point.y + r * (edge_target_point.y - edge_source_point.y))
         
-        return self.subdivision_points_for_edges
-    
-    def set_up(self):
-        self.S = self.S_initial
-        self.I = self.I_initial
-        self.P = self.P_initial
+def forcebundle(edges):
+    S = S_initial
+    I = I_initial
+    P = P_initial
 
-        self.create_edge_subdivision(self.P) 
-        self.compute_compatibility_list() 
-    
-    def forcebundle_step(self):
-        t = time.time()
-        print("Step")
-        #for iteration in range(math.ceil(10)): #self.I)):
-                
-        for e_id,edge in enumerate(self.subdivision_points_for_edges):
-            edge_movements = self.calculate_edge_forces(edge,e_id)
-                
-            for i in range(1,self.P+1):
-                point = self.subdivision_points_for_edges[e_id][i]
-                new_x = point[0] + edge_movements[i-1][0]
-                new_y = point[1] + edge_movements[i-1][1]
-                self.subdivision_points_for_edges[e_id][i] = (new_x,new_y)
-    
-                        #print(self.distance(point,(new_x,new_y)))  
-        #self.S *= self.S_rate
-        #self.I *= self.I_rate
-        #self.P += 1    
-        print("Time elapsed: {}".format(time.time()-t))       
-        #self.subdivision_points_for_edge = self.update_edge_subdivisions(self.edges, self.subdivision_points_for_edges, self.P)
-                        
-    def calculate_edge_forces(self,edge,edge_id):
-        edge_forces = []
-        #self.K = 1
-        kP = self.K / (self.edge_length(self.edges[edge_id]) * (self.P+1))
-        
-        for i in range(1,len(edge)-1):
+    subdivision_points_for_edges = create_edge_subdivision(edges,P)    ##Creates subdivision_points_for_edges
+    compatibility_list_for_edge = compute_compatibility_list(edges) #compatibility_list_for_edge = subdivision_points_for_edges #compute_compatibility_list(edges)
+    #subdivision_points_for_edge = update_edge_divisions(edges, subdivision_points_for_edge, P)
+
+    for cycle in range(C):
+        print("Cycle:{}".format(cycle))
+        for iteration in range(math.ceil(I)):
             
-            F_s = self.get_spring_force(edge,edge_id,i,kP)
-            F_e = self.get_electrostatic_force(edge,edge_id,i) 
-            #F_s = (0,0)
-            #if edge_id == 219:
-            #    print(F_s,'\n',F_e,'\n')
+            for e_id,edge in enumerate(subdivision_points_for_edges):
+                edge_movements = calculate_edge_forces(subdivision_points_for_edges,compatibility_list_for_edge,
+                                                       edges,edge,e_id,S,P)
                 
-            F_x = self.S * (F_s[0] + F_e[0])
-            F_y = self.S * (F_s[1] + F_e[1])
-            edge_forces.append((F_x,F_y))
+                for i in range(1,P+1):
+                    point = subdivision_points_for_edges[e_id][i]
+                    new_x = point.x + edge_movements[i-1].x
+                    new_y = point.y + edge_movements[i-1].y
+                    subdivision_points_for_edges[e_id][i] = Point(new_x,new_y)
+
+                    #print(distance(point,(new_x,new_y)))  
         
-        return edge_forces
+        S *= S_rate
+        I *= I_rate
+        P = round(P * P_rate)
+        
+        subdivision_points_for_edges = update_edge_subdivisions(edges, subdivision_points_for_edges, P)
+        
+        #print(subdivision_points_for_edges.x)
+        
+    #[print(point[1]) for point in subdivision_points_for_edges]
     
+    return subdivision_points_for_edges
+    
+    
+def forcebundle_step(edges,subdivision_points_for_edges,compatibility_list_for_edge,S=S_initial,I=I_initial,P=P_initial):
+    t = time.time()
+    print("Step")
+    #for iteration in range(math.ceil(10)): #I)):
+            
+    for e_id,edge in enumerate(subdivision_points_for_edges):
+        edge_movements = calculate_edge_forces(subdivision_points_for_edges,compatibility_list_for_edge,
+                                                       edges,edge,e_id,S,P)
+            
+        for i in range(1,P+1):
+            point = subdivision_points_for_edges[e_id][i]
+            new_x = point.x + edge_movements[i-1].x
+            new_y = point.y + edge_movements[i-1].y
+            subdivision_points_for_edges[e_id][i] = Point(new_x,new_y)
+
+              
+    print("Time elapsed: {}".format(time.time()-t))       
+    
+@njit(fastmath=FASTMATH)                        
+def calculate_edge_forces(subdivision_points_for_edges,compatibility_list_for_edge,edges,edge,edge_id,S,P):
+    edge_forces = []
+    
+    kP = K / (edge_length(edges[edge_id]) * (P+1))
+    
+    for i in range(1,len(edge)-1):
+        
+        F_s = get_spring_force(edge,edge_id,i,kP)
+        compatible_edges = compatibility_list_for_edge[edge_id]
+        F_e = get_electrostatic_force(subdivision_points_for_edges,compatible_edges,edge,edge_id,i) 
+        #F_s = (0,0)
+        #if edge_id == 219:
+        #    print(F_s,'\n',F_e,'\n')
+            
+        F_x = S * (F_s.x + F_e.x)
+        F_y = S * (F_s.y + F_e.y)
+        
+        if math.fabs(F_x) > 1000 or math.fabs(F_y) > 1000:
+            print((F_s,F_e))
+            
+        edge_forces.append(Force(F_x,F_y))
+    
+    return edge_forces
+    
+edge_class = Edge.class_type.instance_type
+@njit(fastmath=FASTMATH)
+def get_empty_edge_list():
+    return List.empty_list(edge_class)
+
+def graph2edges(graph):
+    edges = get_empty_edge_list()
+    for edge in graph.edges():
+        
+        source = edge.node1
+        source = Point(float32(source['x']), float32(source['y']))
+        
+        target = edge.node2
+        target = Point(float32(target['x']), float32(target['y']))
+        edge = Edge(source, target,int16(edge.id))
+        #print(type(target))
+        #if is_long_enough(edge):
+        edges.append(edge)
+
+    return edges
 
 if __name__ == "__main__":
     parser = GraphMLParser()

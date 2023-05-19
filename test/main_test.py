@@ -8,7 +8,7 @@
 # FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS 
 # OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING 
 # OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-from pygraphml import GraphMLParser 
+#from pygraphml import GraphMLParser 
 import sys, random, math
 from PySide6.QtCore import Qt, QSize, QRectF, QLineF
 import PySide6.QtWidgets as QtWidgets
@@ -89,15 +89,15 @@ class VisGraphicsScene(QGraphicsScene):
         self.selectEdges(node)
 
     def stepEvent(self):
-        self.window.bundling.forcebundle_step()
+        forcebundle_step(self.window.bundle_edges,self.window.subdivision_points_for_edges,
+                         self.window.compatibility_list_for_edge)
         
         if self.l != [] and self.l is not None:
             for node in self.l:
                 self.removeItem(node)
                 del node
         
-        self.l = self.window.drawLines(self.window.bundling.subdivision_points_for_edges)    
-        #self.l = self.window.generateCircles(self.window.bundling.subdivision_points_for_edges,10,1)
+        self.l = self.window.drawLines(self.window.subdivision_points_for_edges)    
         
     def selectEdges(self,node):
         ##Select edges stemming from node
@@ -185,12 +185,14 @@ class MainWindow(QMainWindow):
         
         #print(self.circle_to_node)
         #print(self.node_to_circle)
-        self.bundling = EdgeBundling(self.graph.edges())
-        self.bundling.set_up()
         
-        #self.bundling.forcebundle()
-        #self.scene.l = self.drawLines(self.bundling.subdivision_points_for_edges)
-        #self.scene.l = self.generateCircles(self.bundling.subdivision_points_for_edges,10,1)
+        self.bundle_edges = graph2edges(self.graph)
+        self.subdivision_points_for_edges = create_edge_subdivision(self.bundle_edges,1)    ##Creates subdivision_points_for_edges
+        self.compatibility_list_for_edge = compute_compatibility_list(self.bundle_edges)
+        
+        
+        self.subdivision_points_for_edges = forcebundle(self.bundle_edges)
+        self.scene.l = self.drawLines(self.subdivision_points_for_edges)
         
     def generateCircles(self,edges,d,color_id):
         l = list()
@@ -351,12 +353,12 @@ class MainWindow(QMainWindow):
         for edge in edges:
             for i in range(1,len(edge)):
                 start = edge[i-1]
-                x1 = start[0]
-                y1 = start[1]
+                x1 = start.x
+                y1 = start.y
                 
                 end = edge[i]
-                x2 = end[0]
-                y2 = end[1]
+                x2 = end.x
+                y2 = end.y
                 
                 line = self.scene.addLine(x1,y1,x2,y2,pen=self.scene.line_pen)
                 
