@@ -12,14 +12,17 @@
     <!-- nodes -->
     <node id="0">
       <data key="x">-1000</data>
+      <data key="tooltip">A(lngx=-92.224444,laty=34.729444)</data>
       <data key="y">-1000</data>
     </node>
     <node id="1">
       <data key="x">0</data>
+      <data key="tooltip">B(lngx=-92.224444,laty=34.729444)</data>
       <data key="y">0</data>
     </node>
     <node id="2">
       <data key="x">-1000</data>
+      <data key="tooltip">C(lngx=-92.224444,laty=34.729444)</data>
       <data key="y">1000</data>
     </node>
 

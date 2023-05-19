@@ -12,26 +12,32 @@
     <!-- nodes -->
     <node id="0">
       <data key="x">-50</data>
+      <data key="tooltip">A(lngx=-92.224444,laty=34.729444)</data>
       <data key="y">-100</data>
     </node>
     <node id="1">
       <data key="x">-50</data>
+      <data key="tooltip">B(lngx=-92.224444,laty=34.729444)</data>
       <data key="y">100</data>
     </node>
     <node id="2">
       <data key="x">0</data>
+      <data key="tooltip">C(lngx=-92.224444,laty=34.729444)</data>
       <data key="y">-100</data>
     </node>
     <node id="3">
       <data key="x">0</data>
+      <data key="tooltip">D(lngx=-92.224444,laty=34.729444)</data>
       <data key="y">100</data>
     </node>
     <node id="4">
       <data key="x">50</data>
+      <data key="tooltip">E(lngx=-92.224444,laty=34.729444)</data>
       <data key="y">-100</data>
     </node>
     <node id="5">
       <data key="x">50</data>
+      <data key="tooltip">F(lngx=-92.224444,laty=34.729444)</data>
       <data key="y">100</data>
     </node>
 

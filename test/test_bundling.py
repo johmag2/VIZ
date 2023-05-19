@@ -70,11 +70,11 @@ class VisGraphicsView(QGraphicsView):
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.setWindowTitle('VIZ Qt for Python Example')
+        self.setWindowTitle('VIZ Airlines')
         self.createGraphicView()
         
-        self.graph = GraphMLParser().parse("test_graph/test copy.graphml")
-        #self.graph = GraphMLParser().parse("airlines.graphml/airlines.graphml")
+        #self.graph = GraphMLParser().parse("test_graph/test_S.graphml")
+        self.graph = GraphMLParser().parse("airlines.graphml/airlines2.graphml")
         self.bundling = EdgeBundling(self.graph.edges())
         
         self.generateLine()
@@ -88,7 +88,7 @@ class MainWindow(QMainWindow):
         self.bundling.forcebundle()
         
         self.generateCircles(self.bundling.subdivision_points_for_edges,10,2)
-        self.generateCircles(old,5,1)
+        #self.generateCircles(old,5,1)
         
         #new = self.bundling.update_edge_subdivisions(self.graph.edges(),self.bundling.subdivision_points_for_edges,4)
         #self.generateCircles(new,5,1)
@@ -123,6 +123,7 @@ class MainWindow(QMainWindow):
             line.setData(0,"{}->{}".format(start['label'],end['label']))
             
     def generateCircles(self,edges,d,color_id):
+        
         #Generate random data
         #d = 1
         #print(points)
