@@ -18,16 +18,16 @@ from numba.types import ListType, int16, uint8
 
 FASTMATH = True
 eps = 1e-6
-K = 0.5
+K = 0.5 ##Bundling constant for spring force
 
 ##Initials
-S_initial = 0.4
+S_initial = 0.4 #point distance move
 P_initial = 1
 I_initial = 50
 C = 6
 ##Rate
 S_rate = 0.5
-P_rate = 2
+P_rate = 2  #Increase of subdivisions
 I_rate = 0.6666667
 
 @jitclass([('x', float32), ('y', float32)])
@@ -157,6 +157,19 @@ def distance(point1,point2):
 
 @njit(fastmath=FASTMATH)    
 def get_spring_force(edge_points, edge_idx, point_id, kP):
+    prev = edge_points[point_id - 1]
+    next_ = edge_points[point_id + 1]
+    crnt = edge_points[point_id]
+    x = prev.x - crnt.x + next_.x - crnt.x
+    x = x if x >= 0 else 0.
+    y = prev.y - crnt.y + next_.y - crnt.y
+    y = y if y >= 0 else 0.
+
+    x *= kP
+    y *= kP
+
+    return Force(x, y)
+
     ##Compute spring forces
     prev_p = edge_points[point_id - 1]
     next_p = edge_points[point_id + 1]
@@ -184,6 +197,7 @@ def custom_edge_length(edge):
 
 @njit(fastmath=FASTMATH)
 def get_electrostatic_force(subdivision_points_for_edges,compatible_edges_list,edge_points, edge_idx, i):
+    
     ##Compute electostatic forces
     sum_of_forces_x = 0.0
     sum_of_forces_y = 0.0
@@ -194,7 +208,7 @@ def get_electrostatic_force(subdivision_points_for_edges,compatible_edges_list,e
     for oe_id in range(len(compatible_edges_list)):
         other_edge_id = compatible_edges_list[oe_id]#[0]
         #score = compatible_edges_list[oe_id][1]
-        o_point = subdivision_points_for_edges[other_edge_id][i] #compatible_edges_list
+        o_point = subdivision_points_for_edges[other_edge_id[i]] #compatible_edges_list
         
         force_x = o_point.x - current_point.x
         force_y = o_point.y - current_point.y
@@ -202,7 +216,7 @@ def get_electrostatic_force(subdivision_points_for_edges,compatible_edges_list,e
         #print(dist)
         if (math.fabs(force_x) > eps) or (math.fabs(force_y) > eps):
             divisor = custom_edge_length(Edge(o_point,current_point,-1))
-            diff = 1/divisor**2
+            diff = 1/divisor
             #dist = distance(current_point,o_point)
 
             sum_of_forces_x += force_x * diff #/ dist**2
@@ -219,6 +233,7 @@ def compute_compatibility_list(edges):
     
     for _ in edges:
         compatibility_list_for_edge.append(List.empty_list(int16))
+        
     comp_thresh = 0.1
     processed_edges = 0
     
@@ -254,7 +269,7 @@ def edge_as_vector(edge):
  
 @njit(fastmath=FASTMATH)   
 def compatibility_score(edge,oedge):
-    #return 1
+    return 1
     vec = edge_as_vector(edge)
     edge_len = edge_length(edge)
     o_vec = edge_as_vector(oedge)
@@ -390,7 +405,19 @@ def calculate_edge_forces(subdivision_points_for_edges,compatibility_list_for_ed
         edge_forces.append(Force(F_x,F_y))
     
     return edge_forces
-    
+
+@jit(nopython=True, fastmath=FASTMATH)
+def is_long_enough(edge):
+    # Zero length edges
+    if (edge.source.x == edge.target.x) or (edge.source.y == edge.target.y):
+        return False
+    # No EPS euclidean distance
+    raw_lenght = math.sqrt(math.pow(edge.target.x - edge.source.x, 2) + math.pow(edge.target.y - edge.source.y, 2))
+    if raw_lenght < (eps * P_initial * P_rate * C):
+        return False
+    else:
+        return True
+        
 edge_class = Edge.class_type.instance_type
 @njit(fastmath=FASTMATH)
 def get_empty_edge_list():
@@ -407,8 +434,8 @@ def graph2edges(graph):
         target = Point(float32(target['x']), float32(target['y']))
         edge = Edge(source, target,int16(edge.id))
         #print(type(target))
-        #if is_long_enough(edge):
-        edges.append(edge)
+        if is_long_enough(edge):
+            edges.append(edge)
 
     return edges
 

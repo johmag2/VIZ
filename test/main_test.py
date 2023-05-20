@@ -17,7 +17,8 @@ from PySide6.QtGui import QBrush, QPen, QTransform, QPainter, QColor
 import numpy as np
 import copy
 import graph
-from edge_bundling import *
+#from edge_bundling import *
+from ForcedirectedEdgeBundling import *
 
 class VisGraphicsScene(QGraphicsScene):
     def __init__(self,window):
@@ -186,9 +187,9 @@ class MainWindow(QMainWindow):
         #print(self.circle_to_node)
         #print(self.node_to_circle)
         
-        self.bundle_edges = graph2edges(self.graph)
-        self.subdivision_points_for_edges = create_edge_subdivision(self.bundle_edges,1)    ##Creates subdivision_points_for_edges
-        self.compatibility_list_for_edge = compute_compatibility_list(self.bundle_edges)
+        self.bundle_edges = net2edges(self.graph)
+        #self.subdivision_points_for_edges = create_edge_subdivision(self.bundle_edges,1)    ##Creates subdivision_points_for_edges
+        #self.compatibility_list_for_edge = compute_compatibility_list(self.bundle_edges)
         
         
         self.subdivision_points_for_edges = forcebundle(self.bundle_edges)
