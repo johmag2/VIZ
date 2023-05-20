@@ -15,8 +15,9 @@ import PySide6.QtWidgets as QtWidgets
 from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QSizePolicy, QWidget
 from PySide6.QtGui import QBrush, QPen, QTransform, QPainter, QColor
 import numpy as np
-
+import copy
 import graph
+from EdgeBundling import *
 
 class VisGraphicsScene(QGraphicsScene):
     def __init__(self,window):
@@ -25,32 +26,59 @@ class VisGraphicsScene(QGraphicsScene):
         self.selection = []
         self.wasDragg = False
         self.cir_pen = QPen(Qt.black)
-        self.line_pen = QPen(QColor(0,0,0,150),0.5)
+        self.line_pen = QPen(QColor(0,0,100,100),0.25)
         self.selected = QPen(Qt.red)
+        
+        self.bundling_active = False
+        self.straight_lines = []
+        self.bundle_lines = []
 
     def mouseReleaseEvent(self, event): 
         if(self.wasDragg):
             return
         if(self.selection):
-            [item.setPen(self.cir_pen) if type(item) == QtWidgets.QGraphicsEllipseItem else item.setPen(self.line_pen) for item in self.selection]
-            #[item.setPen(self.pen) for item in self.selection if ]
+            [item.setPen(self.cir_pen) if type(item) == QtWidgets.QGraphicsEllipseItem else item.setPen(self.line_pen) 
+                        for item in self.selection]
+            self.selection = []
+           
             
         item = self.itemAt(event.scenePos(), QTransform())
         
         if(item):
             print(item.data(0))
             
-            self.updateInfo(item)
+            if not self.bundling_active:
             
-            item.setPen(self.selected)
-            self.selection.append(item)
-            
-            if type(item) == QtWidgets.QGraphicsEllipseItem:
-                node = self.window.circle_to_node[item]
-                self.selectEdges(node)
+                self.updateInfo(item)
+                
+                item.setPen(self.selected)
+                self.selection.append(item)
+                
+                if type(item) == QtWidgets.QGraphicsEllipseItem:
+                    node = self.window.circle_to_node[item]
+                    self.selectEdges(node)
+                    
+            else:
+                if type(item) == QtWidgets.QGraphicsLineItem:
+                    self.updateInfo(item)
+                    edge_id = self.window.line_to_sub_edge[item]
+                    full_edge = self.window.sub_edge_to_lines[edge_id]
+                    
+                    [line.setPen(self.selected) for line in full_edge]
+                    [self.selection.append(line) for line in full_edge]
+                    
+                elif type(item) == QtWidgets.QGraphicsEllipseItem:
+                    self.updateInfo(item)
+                    
+                    item.setPen(self.selected)
+                    self.selection.append(item)
+                
+                    node = self.window.circle_to_node[item]
+                    self.selectBundleEdges(node)
 
     def updateInfo(self,item):
         ##Update info label
+        text = ""
         if type(item) == QtWidgets.QGraphicsEllipseItem:
             node = self.window.circle_to_node[item]
             text = "Airport: \n {} \n Incoming: {} \n Outgoing: {}".format(node["label"],node["in"],node["out"] )
@@ -74,8 +102,8 @@ class VisGraphicsScene(QGraphicsScene):
         
         ##Reset previous selected
         if self.selection:
-            [item.setPen(self.cir_pen) if type(item) == QtWidgets.QGraphicsEllipseItem else item.setPen(self.line_pen) for item in self.selection]
-           # [item.setPen(self.pen) for item in self.selection]
+            [item.setPen(self.cir_pen) if type(item) == QtWidgets.QGraphicsEllipseItem else item.setPen(self.line_pen) 
+                                     for item in self.selection]
             
         ##Get circle
         circle_obj = self.window.node_to_circle[node]
@@ -84,8 +112,60 @@ class VisGraphicsScene(QGraphicsScene):
         self.updateInfo(circle_obj)
         circle_obj.setPen(self.selected)
         self.selection.append(circle_obj)
-        self.selectEdges(node)
+        
+        if not self.bundling_active:
+            self.selectEdges(node)
+        else:
+            self.selectBundleEdges(node)
 
+    def toggleBundlingEvent(self):
+        
+        if not self.bundling_active:
+            [item.setVisible(True) for item in self.bundle_lines]
+            [item.setVisible(False) for item in self.straight_lines]
+            
+            if self.selection:
+                current_selection = copy.copy(self.selection)
+                self.selection = []
+                for item in current_selection:
+                    if type(item) == QtWidgets.QGraphicsLineItem:
+                        item.setPen(self.line_pen)
+                        
+                        edge = self.window.line_to_edge[item]
+                        edge_id = int(edge.id)
+                        full_edge = self.window.sub_edge_to_lines[edge_id]
+                        [line.setPen(self.selected) for line in full_edge]
+                        [self.selection.append(line) for line in full_edge]
+                    elif type(item) == QtWidgets.QGraphicsEllipseItem:
+                        item.setPen(self.selected)
+                        self.selection.append(item)
+                        
+            self.bundling_active = True
+        else:
+            if self.selection:
+                current_selection = copy.copy(self.selection)
+                self.selection = []
+                
+                for item in current_selection:
+                    if type(item) == QtWidgets.QGraphicsLineItem:
+                        item.setPen(self.line_pen)
+                        edge_id = self.window.line_to_sub_edge[item]
+                        line = self.window.edge_to_line[self.window.graph.edges()[edge_id]]
+                        
+                        line.setPen(self.selected)
+                        self.selection.append(line)
+                        
+                    elif type(item) == QtWidgets.QGraphicsEllipseItem:
+                        #item.setPen(self.selected)
+                        self.selection.append(item)
+            
+            
+            [item.setVisible(True) for item in self.straight_lines]
+            [item.setVisible(False) for item in self.bundle_lines]
+            self.bundling_active = False
+        
+                    
+        
     def selectEdges(self,node):
         ##Select edges stemming from node
         graph = self.window.graph
@@ -102,6 +182,17 @@ class VisGraphicsScene(QGraphicsScene):
                 
             except KeyError:
                 pass
+    
+    def selectBundleEdges(self,node):
+        ##Select edges stemming from node
+        graph = self.window.graph
+        out = graph.node_id_to_out_id[node.id]
+        
+        for edge_id in out:
+            for line in self.window.sub_edge_to_lines[int(edge_id)]:
+                line.setPen(self.selected)
+                self.selection.append(line)
+                    
         
 class VisGraphicsView(QGraphicsView):
     def __init__(self, scene, parent):
@@ -161,8 +252,11 @@ class MainWindow(QMainWindow):
         ## Dicts to go from line to graphical object and vice versa
         self.line_to_edge = {}
         self.edge_to_line = {}
-        self.drawEdges()
+        self.scene.straight_lines = self.drawEdges(self.graph.edges())
         
+        self.line_to_sub_edge = {}
+        self.sub_edge_to_lines = {}
+                
         ##
         self.addGUI()
     
@@ -171,6 +265,9 @@ class MainWindow(QMainWindow):
         
         #print(self.circle_to_node)
         #print(self.node_to_circle)
+        self.bundle_edges = net2edges(self.graph)
+        self.subdivision_points_for_edges = forcebundle(self.bundle_edges)
+        self.scene.bundle_lines = self.drawLines(self.subdivision_points_for_edges)
         
         
     def addGUI(self):
@@ -189,7 +286,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(QtWidgets.QLabel("Info:", objectName='InfoTitle'),0)
         layout.addWidget(QtWidgets.QLabel("", objectName='Info'),1)
         
-        layout.addWidget(QtWidgets.QLabel("", objectName='Space'),3)
+        button = QtWidgets.QPushButton("Toggle Force Bundling")
+        button.clicked.connect(self.scene.toggleBundlingEvent) 
+        layout.addWidget(button,2)
+        
+        layout.addWidget(QtWidgets.QLabel("", objectName='Space'),2)
     
         layout.addWidget(self.paramSetUp(),3)
             
@@ -221,9 +322,8 @@ class MainWindow(QMainWindow):
         
         widgets = [
             QtWidgets.QLabel("Testing"),
-            QtWidgets.QSlider(Qt.Horizontal,objectName='Slider')
+            QtWidgets.QSlider(Qt.Horizontal,objectName='Slider'),
         ]
-        
         for w in widgets:
             param_box_layout.addWidget(w)
         
@@ -277,17 +377,10 @@ class MainWindow(QMainWindow):
             self.circle_to_node[ellipse] = i
             self.node_to_circle[i] = ellipse
     
-    def drawEdges(self):
-        """
-        for edge in self.graph.edge_to_line.values():
-            self.scene.addLine(edge)
-         """
-        """   
-        alpha = 150 #Interval is [0,255]
-        color = QColor(0,0,0,alpha)
-        pen = QPen(color,0.5)
-        """
-        for edge in self.graph.edges():
+    def drawEdges(self,edges):
+        straight_lines = list()
+        
+        for edge in edges:
             start = edge.node1
             x1 = float(start['x'])
             y1 = float(start['y'])
@@ -297,13 +390,42 @@ class MainWindow(QMainWindow):
             y2 = float(end['y'])
             
             line = self.scene.addLine(x1,y1,x2,y2,pen=self.scene.line_pen)
-            line.setData(0,"{}->{}".format(start['label'],end['label']))
+            line.setData(0,"{} -> {}".format(start['label'],end['label']))
             
             self.line_to_edge[line] = edge
             self.edge_to_line[edge] = line
             
-            #break
+            straight_lines.append(line)
+        return straight_lines
+            
+    def drawLines(self,bundled_edges):
+        bundle_lines = list()
         
+        for edge_id, bundle_edge in enumerate(bundled_edges):
+            real_edge = self.graph.edges()[edge_id]
+            for i in range(1,len(bundle_edge)):
+                start = bundle_edge[i-1]
+                x1 = start.x
+                y1 = start.y
+                
+                end = bundle_edge[i]
+                x2 = end.x
+                y2 = end.y
+                
+                line = self.scene.addLine(x1,y1,x2,y2,pen=self.scene.line_pen)
+                line.setData(0,"{}->{}".format(real_edge.node1['label'],real_edge.node2['label']))
+            
+                #line.setData(0,"")
+                line.setVisible(False)
+                
+                self.line_to_sub_edge[line] = edge_id
+                try:
+                    self.sub_edge_to_lines[edge_id].append(line)
+                except:
+                    self.sub_edge_to_lines[edge_id] = [line]
+                    
+                bundle_lines.append(line)
+        return bundle_lines
     
 def main():
     app = QApplication(sys.argv)

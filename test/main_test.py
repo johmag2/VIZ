@@ -18,7 +18,7 @@ import numpy as np
 import copy
 import graph
 #from edge_bundling import *
-from ForcedirectedEdgeBundling import *
+from EdgeBundling import *
 
 class VisGraphicsScene(QGraphicsScene):
     def __init__(self,window):
@@ -89,7 +89,7 @@ class VisGraphicsScene(QGraphicsScene):
         self.selection.append(circle_obj)
         self.selectEdges(node)
 
-    def stepEvent(self):
+    def show_Event(self):
         forcebundle_step(self.window.bundle_edges,self.window.subdivision_points_for_edges,
                          self.window.compatibility_list_for_edge)
         
