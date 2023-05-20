@@ -10,18 +10,18 @@ import math
 
 K = 1 # Bundling constant. Affects string force
 
-C = 1 #6   #Amount of cycles 
+C = 6   #Amount of cycles 
 ## initials
-I_initial = 5 #50  #Amount of iterations
+I_initial = 50  #Amount of iterations
 P_initial = 1   #Subdivision amount
 S_initial = 0.2 #Point move 
 
 ## Changing rates
-P_rate = 2
+P_rate = 1.5 #2
 I_rate = 0.6666667
-S_rate = 0.5
+S_rate = 0.4
 
-compatibility_threshold = 0.5
+compatibility_threshold = 0.3
 eps = 1e-6
 
 # Numba Jit Execution settings
