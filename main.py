@@ -13,7 +13,7 @@ import sys, random, math
 from PySide6.QtCore import Qt, QSize, QRectF, QLineF
 import PySide6.QtWidgets as QtWidgets
 from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QSizePolicy, QWidget
-from PySide6.QtGui import QBrush, QPen, QTransform, QPainter, QColor
+from PySide6.QtGui import QBrush, QPen, QTransform, QPainter, QColor, QIntValidator
 import numpy as np
 import copy
 import graph
@@ -30,9 +30,12 @@ class VisGraphicsScene(QGraphicsScene):
         self.selected = QPen(Qt.red)
         
         self.filtered_items = []
+        self.old_value = 0
+        
         self.bundling_active = False
         self.straight_lines = []
         self.bundle_lines = []
+        
 
     def mouseReleaseEvent(self, event): 
         if(self.wasDragg):
@@ -125,18 +128,30 @@ class VisGraphicsScene(QGraphicsScene):
             self.selectBundleEdges(node)
 
     def filterChangeEvent(self,value):
-        ##Function to catch the filter value change
-        widget = self.window.dock.widget()
-        filter_box = widget.findChild(QtWidgets.QGroupBox,"filter")
-        slider_info = filter_box.findChild(QtWidgets.QLabel,'sliderLabel')
-        slider_info.setText("Current filter: {}".format(value))
         
+        if value == "":
+            value = 0
+        else:
+            value = int(value)
+        if value == self.old_value:
+            return
+        if value == 0:
+            if self.filtered_items:
+                [item.setVisible(True) for item in self.filtered_items]
+                self.filtered_items = []
+            self.old_value = 0
+            return
+            
         node_degrees = self.window.graph.total
-        filtered_nodes_id = np.asarray(node_degrees<=value).nonzero()[0]
-        
-        if self.filtered_items:
-            [item.setVisible(True) for item in self.filtered_items]
-            self.filtered_items = []
+        if value >= self.old_value:
+            filtered_nodes_id = np.asarray((node_degrees <= value) & (node_degrees >= self.old_value)).nonzero()[0]
+
+            #filtered_nodes_id = np.asarray(node_degrees<=value & node_degrees>=self.old_value).nonzero()[0]
+        else:
+            filtered_nodes_id = np.asarray(node_degrees<=value).nonzero()[0]
+            if self.filtered_items:
+                [item.setVisible(True) for item in self.filtered_items]
+                self.filtered_items = []
         
         edges = self.window.graph.edges()
         for node_id in filtered_nodes_id:
@@ -157,16 +172,30 @@ class VisGraphicsScene(QGraphicsScene):
             node_edges_id = out_edges + in_edges
             
             for e_id in node_edges_id:
-                edge = edges[int(e_id)]
-                item = self.window.edge_to_line[edge]
-                item.setVisible(False)
-                self.filtered_items.append(item)
-            
+                
+                if not self.bundling_active:
+                    edge = edges[int(e_id)]
+                    item = self.window.edge_to_line[edge]
+                    item.setVisible(False)
+                    self.filtered_items.append(item)
+                else:
+                    for line in self.window.sub_edge_to_lines[int(e_id)]:
+                        line.setVisible(False)
+                        self.filtered_items.append(line)
+        self.old_value = value
+                        
     def toggleBundlingEvent(self):
+        
+        widget = self.window.dock.widget()
+        filter_box = widget.findChild(QtWidgets.QGroupBox,"filter")
+        input_box = filter_box.findChild(QtWidgets.QLineEdit,'input')
+        input_box.clear()
+        self.filterChangeEvent(0)
         
         if not self.bundling_active:
             [item.setVisible(True) for item in self.bundle_lines]
             [item.setVisible(False) for item in self.straight_lines]
+            
             
             if self.selection:
                 current_selection = copy.copy(self.selection)
@@ -187,6 +216,9 @@ class VisGraphicsScene(QGraphicsScene):
             self.bundling_active = True
         else:
             if self.selection:
+                [item.setVisible(True) for item in self.straight_lines]
+                [item.setVisible(False) for item in self.bundle_lines]
+        
                 current_selection = copy.copy(self.selection)
                 self.selection = []
                 
@@ -203,9 +235,6 @@ class VisGraphicsScene(QGraphicsScene):
                         #item.setPen(self.selected)
                         self.selection.append(item)
             
-            
-            [item.setVisible(True) for item in self.straight_lines]
-            [item.setVisible(False) for item in self.bundle_lines]
             self.bundling_active = False
         
     def selectEdges(self,node):
@@ -277,7 +306,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         
         self.graph = graph.graph()
-        self.graph.parse("airlines.graphml/airlines.graphml")
+        self.graph.parse("airlines.graphml/airlines2.graphml")
         
         #self.graph = GraphMLParser().parse("airlines.graphml/airlines.graphml")
         self.graph.get_node_labels()
@@ -307,9 +336,10 @@ class MainWindow(QMainWindow):
         
         #print(self.circle_to_node)
         #print(self.node_to_circle)
-       # self.bundle_edges = convert_edges(self.graph)
-        #self.subdivision_points_for_edges = forcebundle(self.bundle_edges)
-        #self.scene.bundle_lines = self.drawLines(self.subdivision_points_for_edges)
+        
+        self.bundle_edges = convert_edges(self.graph)
+        self.subdivision_points_for_edges = forcebundle(self.bundle_edges)
+        self.scene.bundle_lines = self.drawLines(self.subdivision_points_for_edges)
         
         
     def addGUI(self):
@@ -363,20 +393,26 @@ class MainWindow(QMainWindow):
         param_box = QtWidgets.QGroupBox("Filter",objectName='filter') 
         
         filter_info = QtWidgets.QLabel('Total Degree Filter \n', objectName='filterInfo')
-        slider_label = QtWidgets.QLabel('', objectName='sliderLabel')
-        slider = QtWidgets.QSlider(Qt.Horizontal,objectName='slider')
+        filter_label = QtWidgets.QLabel('', objectName='filterLabel')
+        input_box = QtWidgets.QLineEdit(objectName='input')
         
-        slider.setValue(0)
-        slider.setMinimum(0)
-        slider.setMaximum(np.max(self.graph.total))
-        slider.valueChanged.connect(self.scene.filterChangeEvent)
+        #slider.setValue(0)
+        #slider.setMinimum(0)
+        #slider.setMaximum(np.max(self.graph.total))
         
-        slider_label.setText("Current filter: {}".format(slider.value()))
+        send_text = lambda  : self.scene.filterChangeEvent(input_box.text())
+        input_box.editingFinished.connect(send_text)
+        
+        
+        onlyInt = QIntValidator()
+        onlyInt.setRange(0, np.max(self.graph.total))  
+        input_box.setValidator(onlyInt)
+        filter_label.setText("Input minimum degree:")
         
         
         param_box_layout.addWidget(filter_info)
-        param_box_layout.addWidget(slider_label)
-        param_box_layout.addWidget(slider,1)
+        param_box_layout.addWidget(filter_label)
+        param_box_layout.addWidget(input_box,1)
         
         #param_box_layout.setAlignment(Qt.AlignBottom)
         param_box.setLayout(param_box_layout)
