@@ -29,6 +29,7 @@ class VisGraphicsScene(QGraphicsScene):
         self.line_pen = QPen(QColor(0,0,100,100),0.25)
         self.selected = QPen(Qt.red)
         
+        self.filtered_items = []
         self.bundling_active = False
         self.straight_lines = []
         self.bundle_lines = []
@@ -99,14 +100,19 @@ class VisGraphicsScene(QGraphicsScene):
         
         ##Get selected node
         node = self.window.graph.name_to_node[name]
+             
+        ##Get circle
+        circle_obj = self.window.node_to_circle[node]
+        """
+        if circle_obj in self.filtered_items:
+            return
+        """
         
         ##Reset previous selected
         if self.selection:
             [item.setPen(self.cir_pen) if type(item) == QtWidgets.QGraphicsEllipseItem else item.setPen(self.line_pen) 
                                      for item in self.selection]
-            
-        ##Get circle
-        circle_obj = self.window.node_to_circle[node]
+       
         
         #Update viz
         self.updateInfo(circle_obj)
@@ -118,6 +124,44 @@ class VisGraphicsScene(QGraphicsScene):
         else:
             self.selectBundleEdges(node)
 
+    def filterChangeEvent(self,value):
+        ##Function to catch the filter value change
+        widget = self.window.dock.widget()
+        filter_box = widget.findChild(QtWidgets.QGroupBox,"filter")
+        slider_info = filter_box.findChild(QtWidgets.QLabel,'sliderLabel')
+        slider_info.setText("Current filter: {}".format(value))
+        
+        node_degrees = self.window.graph.total
+        filtered_nodes_id = np.asarray(node_degrees<=value).nonzero()[0]
+        
+        if self.filtered_items:
+            [item.setVisible(True) for item in self.filtered_items]
+            self.filtered_items = []
+        
+        edges = self.window.graph.edges()
+        for node_id in filtered_nodes_id:
+            node = self.window.graph.nodes()[node_id]
+            item = self.window.node_to_circle[node]
+            item.setVisible(False)
+            self.filtered_items.append(item)
+            
+            try:
+                out_edges = self.window.graph.node_id_to_out_id[str(node_id)]
+            except:
+                out_edges = []
+            try:
+                in_edges = self.window.graph.node_id_to_in_id[str(node_id)]
+            except:
+                in_edges = []   
+            
+            node_edges_id = out_edges + in_edges
+            
+            for e_id in node_edges_id:
+                edge = edges[int(e_id)]
+                item = self.window.edge_to_line[edge]
+                item.setVisible(False)
+                self.filtered_items.append(item)
+            
     def toggleBundlingEvent(self):
         
         if not self.bundling_active:
@@ -139,7 +183,7 @@ class VisGraphicsScene(QGraphicsScene):
                     elif type(item) == QtWidgets.QGraphicsEllipseItem:
                         item.setPen(self.selected)
                         self.selection.append(item)
-                        
+            
             self.bundling_active = True
         else:
             if self.selection:
@@ -163,8 +207,6 @@ class VisGraphicsScene(QGraphicsScene):
             [item.setVisible(True) for item in self.straight_lines]
             [item.setVisible(False) for item in self.bundle_lines]
             self.bundling_active = False
-        
-                    
         
     def selectEdges(self,node):
         ##Select edges stemming from node
@@ -265,9 +307,9 @@ class MainWindow(QMainWindow):
         
         #print(self.circle_to_node)
         #print(self.node_to_circle)
-        self.bundle_edges = convert_edges(self.graph)
-        self.subdivision_points_for_edges = forcebundle(self.bundle_edges)
-        self.scene.bundle_lines = self.drawLines(self.subdivision_points_for_edges)
+       # self.bundle_edges = convert_edges(self.graph)
+        #self.subdivision_points_for_edges = forcebundle(self.bundle_edges)
+        #self.scene.bundle_lines = self.drawLines(self.subdivision_points_for_edges)
         
         
     def addGUI(self):
@@ -283,16 +325,16 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(QtWidgets.QLabel("Select Airport:",objectName='Select'),0)
         layout.addWidget(self.listSetUp(),1)
-        layout.addWidget(QtWidgets.QLabel("Info:", objectName='InfoTitle'),0)
-        layout.addWidget(QtWidgets.QLabel("", objectName='Info'),1)
+        layout.addWidget(QtWidgets.QLabel("Info:", objectName='InfoTitle'),1)
+        layout.addWidget(QtWidgets.QLabel("", objectName='Info'),0)
         
         button = QtWidgets.QPushButton("Toggle Force Bundling")
         button.clicked.connect(self.scene.toggleBundlingEvent) 
-        layout.addWidget(button,2)
+        layout.addWidget(button,3)
         
         layout.addWidget(QtWidgets.QLabel("", objectName='Space'),2)
     
-        layout.addWidget(self.paramSetUp(),3)
+        layout.addWidget(self.filterSetUp(),2)
             
         #self.dock.setWidget(text)
         widget = QWidget()
@@ -316,16 +358,25 @@ class MainWindow(QMainWindow):
         
         return node_list
     
-    def paramSetUp(self):
+    def filterSetUp(self):
         param_box_layout = QtWidgets.QVBoxLayout()
-        param_box = QtWidgets.QGroupBox("Parameters") 
+        param_box = QtWidgets.QGroupBox("Filter",objectName='filter') 
         
-        widgets = [
-            QtWidgets.QLabel("Testing"),
-            QtWidgets.QSlider(Qt.Horizontal,objectName='Slider'),
-        ]
-        for w in widgets:
-            param_box_layout.addWidget(w)
+        filter_info = QtWidgets.QLabel('Total Degree Filter \n', objectName='filterInfo')
+        slider_label = QtWidgets.QLabel('', objectName='sliderLabel')
+        slider = QtWidgets.QSlider(Qt.Horizontal,objectName='slider')
+        
+        slider.setValue(0)
+        slider.setMinimum(0)
+        slider.setMaximum(np.max(self.graph.total))
+        slider.valueChanged.connect(self.scene.filterChangeEvent)
+        
+        slider_label.setText("Current filter: {}".format(slider.value()))
+        
+        
+        param_box_layout.addWidget(filter_info)
+        param_box_layout.addWidget(slider_label)
+        param_box_layout.addWidget(slider,1)
         
         #param_box_layout.setAlignment(Qt.AlignBottom)
         param_box.setLayout(param_box_layout)
@@ -351,8 +402,8 @@ class MainWindow(QMainWindow):
         """
         #Determine size of airport based on throughput
         g = self.graph
-        outgoing,incoming = g.airport_throughput()
-        total = outgoing + incoming 
+        #outgoing,incoming = g.airport_throughput()
+        total = g.total
         sort_indexes = np.argsort(total)
         
         ## Set color of airports

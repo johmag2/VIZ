@@ -13,17 +13,20 @@ class graph(pyGraph):
             self._nodes = g._nodes
             self._edges = g._edges
             self.get_node_labels()
-            self.airport_throughput()
+            self.outgoing, self.incoming = self.airport_throughput()
+            self.total = self.outgoing + self.incoming
         
         self.name_to_node = {}        
         self.node_id_to_out_id = {}
+        self.node_id_to_in_id = {}
     
     def parse(self,url):
         g = GraphMLParser().parse(url)
         self._nodes = g._nodes
         self._edges = g._edges
         self.get_node_labels()
-        self.airport_throughput()
+        self.outgoing, self.incoming = self.airport_throughput()
+        self.total = self.outgoing + self.incoming
         #self.create_nodes()
         #self.create_edges()
         
@@ -42,28 +45,33 @@ class graph(pyGraph):
     
     def airport_throughput(self):
         ## Count the throughput of an airport
-        self.outgoing = np.zeros(len(self.nodes()),dtype=np.int32)
-        self.incoming = np.zeros(len(self.nodes()),dtype=np.int32)
+        outgoing = np.zeros(len(self.nodes()),dtype=np.int32)
+        incoming = np.zeros(len(self.nodes()),dtype=np.int32)
         
         for edge in self.edges():
-            self.outgoing[int(edge.node1.id)] += 1   #Outgoing  
-            self.incoming[int(edge.node2.id)] += 1   #Incoming
+            outgoing[int(edge.node1.id)] += 1   #Outgoing  
+            incoming[int(edge.node2.id)] += 1   #Incoming
             
             ##Set up node to out dict
+            try: 
+                self.node_id_to_in_id[str(edge.node2.id)].append(edge.id)
+            except KeyError:
+                self.node_id_to_in_id[str(edge.node2.id)]  =  [edge.id]
+                
             try:
                 self.node_id_to_out_id[str(edge.node1.id)].append(edge.id)
             except KeyError:
-                self.node_id_to_out_id[str(edge.node1.id)]= [edge.id]
+                self.node_id_to_out_id[str(edge.node1.id)] = [edge.id]
         
         ##Check if size info in node
         try:
             self.nodes()[0]["in"] = self.nodes()[0]["in"]
         except KeyError:
             for node in self.nodes():
-                node["in"] = self.incoming[int(node.id)]
-                node["out"] = self.outgoing[int(node.id)]
+                node["in"] = incoming[int(node.id)]
+                node["out"] = outgoing[int(node.id)]
 
-        return self.outgoing,self.incoming
+        return outgoing,incoming
         
         
     def create_nodes(self):
