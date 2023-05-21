@@ -18,7 +18,7 @@ import numpy as np
 import copy
 import graph
 #from edge_bundling import *
-from EdgeBundling import *
+from edge_bundling import *
 
 class VisGraphicsScene(QGraphicsScene):
     def __init__(self,window):
