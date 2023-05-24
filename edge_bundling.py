@@ -49,7 +49,7 @@ def distance(source, target):
 
 
 @njit(fastmath=FASTMATH)
-def project_point_on_line(point, edge):
+def point_projection(point, edge):
     L = math.sqrt(math.pow(edge.target.x - edge.source.x, 2) + math.pow((edge.target.y - edge.source.y), 2))
     r = ((edge.source.y - point.y) * (edge.source.y - edge.target.y) - (edge.source.x - point.x) * (edge.target.x - edge.source.x)) / math.pow(L, 2)
     return Point((edge.source.x + r * (edge.target.x - edge.source.x)),
@@ -59,17 +59,20 @@ def project_point_on_line(point, edge):
 @njit(fastmath=FASTMATH)
 def edge_visibility(edge, oedge):
     # send actual edge points positions
-    I0 = project_point_on_line(oedge.source, edge)
-    I1 = project_point_on_line(oedge.target, edge)
-    divisor = distance(I0, I1)
-    divisor = divisor if divisor != 0 else eps
+    I0 = point_projection(oedge.source, edge)
+    I1 = point_projection(oedge.target, edge)
+    
+    
+    dist = distance(I0, I1)
+    dist = dist if dist >= eps else eps
 
-    midI = Point((I0.x + I1.x) / 2.0, (I0.y + I1.y) / 2.0)
+    midI = Point((I0.x + I1.x) / 2.0, 
+                 (I0.y + I1.y) / 2.0)
 
     midP = Point((edge.source.x + edge.target.x) / 2.0,
                  (edge.source.y + edge.target.y) / 2.0)
 
-    return max(0, 1 - 2 * distance(midP, midI) / divisor)
+    return max(0, 1 - 2 * distance(midP, midI) / dist)
 
 @njit(fastmath=FASTMATH)
 def compatiblity_score(edge, oedge):
@@ -119,7 +122,6 @@ def compute_compatible_list(edges):
             if edge_id != oe_id:
                 
                 score = compatiblity_score(edge,oedge)
-                #print(score)    
                 
                 if score >= compatibility_threshold:
                     compatible_list[edge_id].append(oe_id)

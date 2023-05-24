@@ -11,9 +11,10 @@
 #from pygraphml import GraphMLParser 
 import sys, random, math
 from PySide6.QtCore import Qt, QSize, QRectF, QLineF
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
 import PySide6.QtWidgets as QtWidgets
 from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QSizePolicy, QWidget
-from PySide6.QtGui import QBrush, QPen, QTransform, QPainter, QColor, QIntValidator
+from PySide6.QtGui import QBrush, QPen, QTransform, QPainter, QColor, QIntValidator, QSurfaceFormat
 import numpy as np
 import copy
 import graph
@@ -26,7 +27,7 @@ class VisGraphicsScene(QGraphicsScene):
         self.selection = []
         self.wasDragg = False
         self.cir_pen = QPen(Qt.black)
-        self.line_pen = QPen(QColor(0,0,100,100),0.25)
+        self.line_pen = QPen(QColor(0,0,100,100),0.10)
         self.selected = QPen(Qt.red)
         
         self.filtered_items = []
@@ -185,7 +186,7 @@ class VisGraphicsScene(QGraphicsScene):
         self.old_value = value
                         
     def toggleBundlingEvent(self):
-        
+        print("Toggle")
         widget = self.window.dock.widget()
         filter_box = widget.findChild(QtWidgets.QGroupBox,"filter")
         input_box = filter_box.findChild(QtWidgets.QLineEdit,'input')
@@ -215,10 +216,10 @@ class VisGraphicsScene(QGraphicsScene):
             
             self.bundling_active = True
         else:
+            
+            [item.setVisible(True) for item in self.straight_lines]
+            [item.setVisible(False) for item in self.bundle_lines]
             if self.selection:
-                [item.setVisible(True) for item in self.straight_lines]
-                [item.setVisible(False) for item in self.bundle_lines]
-        
                 current_selection = copy.copy(self.selection)
                 self.selection = []
                 
@@ -306,7 +307,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         
         self.graph = graph.graph()
-        self.graph.parse("airlines.graphml/airlines2.graphml")
+        self.graph.parse("airlines.graphml/airlines.graphml")
         
         #self.graph = GraphMLParser().parse("airlines.graphml/airlines.graphml")
         self.graph.get_node_labels()
@@ -421,10 +422,20 @@ class MainWindow(QMainWindow):
     
     def createGraphicView(self):    
         self.scene = VisGraphicsScene(self)
+        """
+        format = QSurfaceFormat()
+        format.setSamples(4)
         
+        gl = QOpenGLWidget()
+        gl.setFormat(format)
+        gl.setAutoFillBackground(True)
+        """
         self.brush = [QBrush(Qt.green), QBrush(Qt.yellow), QBrush(Qt.red)]
         #self.brush = [QBrush(Qt.blue),QBrush(Qt.green), QBrush(Qt.yellow), QBrush(Qt.red)] ##https://doc.qt.io/qt-6/qt.html#GlobalColor-enum
         self.view = VisGraphicsView(self.scene, self)
+        
+        #self.view.setViewport(gl)
+        #self.view.setBackgroundBrush(QColor(255, 255, 255))
         
         self.setCentralWidget(self.view)
         self.view.setGeometry(0, 0, 800, 600)
